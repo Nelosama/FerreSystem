@@ -181,42 +181,25 @@ export const cancelarPendientes = (tx: Tx, tenantId: string, usuarioId: string, 
  * con la fila bloqueada.
  * - Una solicitud pendiente de un contenido anterior se invalida (quien editó queda registrado).
  * - Sin descuento no se requiere nada.
- * - Si quien guarda es ADMIN, el descuento queda autorizado por su cuenta y registrado.
- * - Si no, se crea la solicitud pendiente a nombre de quien guarda (o se conserva la que ya había para ese contenido).
+ * - Con descuento se crea la solicitud pendiente a nombre de quien guarda (o se conserva la que ya había para ese
+ *   contenido). Guardar nunca aprueba, ni siquiera si guarda un ADMIN: la aprobación es una acción explícita
+ *   (AutorizacionesService.aprobar). Revisión de Codex en #246.
  * - Un descuento ya rechazado con ese mismo contenido solo se vuelve a solicitar con `volverASolicitar`.
  */
-export async function sincronizarAutorizacion(tx: Tx, tenantId: string, usuario: { id: string; rol: string }, c: CotizacionConDescuento, opciones: { volverASolicitar?: boolean } = {}): Promise<AutorizacionDescuentoVista> {
+export async function sincronizarAutorizacion(tx: Tx, tenantId: string, usuario: { id: string }, c: CotizacionConDescuento, opciones: { volverASolicitar?: boolean } = {}): Promise<AutorizacionDescuentoVista> {
   const requiere = tieneDescuento(c);
   const huella = huellaDescuento(c);
   await cerrarPendientes(tx, tenantId, usuario.id, c.id, 'INVALIDADA', 'La cotización cambió después de solicitar la autorización', requiere ? huella : undefined);
   if (!requiere) return evaluarAutorizacion(c, []);
 
-  const existentes = await solicitudesDeCotizaciones(tx, tenantId, [c.id]);
-  const actual = evaluarAutorizacion(c, existentes);
-  if (actual.estado === 'APROBADA') return actual;
-  const esAdmin = usuario.rol === 'ADMIN';
-  if (actual.estado === 'PENDIENTE' && !esAdmin) return actual;
+  const actual = evaluarAutorizacion(c, await solicitudesDeCotizaciones(tx, tenantId, [c.id]));
+  if (actual.estado === 'APROBADA' || actual.estado === 'PENDIENTE') return actual;
   // Un descuento rechazado no se vuelve a pedir solo por guardar otra vez: hace falta pedirlo de forma expresa.
-  if (actual.estado === 'RECHAZADA' && !esAdmin && !opciones.volverASolicitar) return actual;
+  if (actual.estado === 'RECHAZADA' && !opciones.volverASolicitar) return actual;
 
-  const resumen = JSON.stringify(resumenDescuento(c));
-  if (esAdmin) {
-    if (actual.estado === 'PENDIENTE') {
-      // El ADMIN guardó el mismo contenido que estaba pendiente: lo aprueba con su cuenta, conservando al solicitante.
-      await query(tx, `UPDATE solicitudes_autorizacion SET estado = 'APROBADA', decisor_id = $3, decidida_at = now()
-        WHERE id = $1 AND tenant_id = $2 AND estado = 'PENDIENTE' RETURNING id`, actual.solicitudId, tenantId, usuario.id);
-      await audit(tx, tenantId, usuario.id, 'AUTORIZACION_APROBADA', actual.solicitudId!, { tipo: TIPO_DESCUENTO_COTIZACION, cotizacionId: c.id, cotizacion: referencia(c), alGuardar: true });
-    } else {
-      const solicitudId = id();
-      await query(tx, `INSERT INTO solicitudes_autorizacion (id, tenant_id, tipo, estado, entidad_id, operacion_hash, resumen, solicitante_id, decisor_id, decidida_at)
-        VALUES ($1, $2, '${TIPO_DESCUENTO_COTIZACION}', 'APROBADA', $3, $4, $5::jsonb, $6, $6, now()) RETURNING id`, solicitudId, tenantId, c.id, huella, resumen, usuario.id);
-      await audit(tx, tenantId, usuario.id, 'AUTORIZACION_APROBADA', solicitudId, { tipo: TIPO_DESCUENTO_COTIZACION, cotizacionId: c.id, cotizacion: referencia(c), descuento: Number(c.descuento), total: Number(c.total), aplicadaPorAdministrador: true });
-    }
-  } else {
-    const solicitudId = id();
-    await query(tx, `INSERT INTO solicitudes_autorizacion (id, tenant_id, tipo, estado, entidad_id, operacion_hash, resumen, solicitante_id)
-      VALUES ($1, $2, '${TIPO_DESCUENTO_COTIZACION}', 'PENDIENTE', $3, $4, $5::jsonb, $6) RETURNING id`, solicitudId, tenantId, c.id, huella, resumen, usuario.id);
-    await audit(tx, tenantId, usuario.id, 'AUTORIZACION_SOLICITADA', solicitudId, { tipo: TIPO_DESCUENTO_COTIZACION, cotizacionId: c.id, cotizacion: referencia(c), descuento: Number(c.descuento), total: Number(c.total) });
-  }
+  const solicitudId = id();
+  await query(tx, `INSERT INTO solicitudes_autorizacion (id, tenant_id, tipo, estado, entidad_id, operacion_hash, resumen, solicitante_id)
+    VALUES ($1, $2, '${TIPO_DESCUENTO_COTIZACION}', 'PENDIENTE', $3, $4, $5::jsonb, $6) RETURNING id`, solicitudId, tenantId, c.id, huella, JSON.stringify(resumenDescuento(c)), usuario.id);
+  await audit(tx, tenantId, usuario.id, 'AUTORIZACION_SOLICITADA', solicitudId, { tipo: TIPO_DESCUENTO_COTIZACION, cotizacionId: c.id, cotizacion: referencia(c), descuento: Number(c.descuento), total: Number(c.total) });
   return evaluarAutorizacion(c, await solicitudesDeCotizaciones(tx, tenantId, [c.id]));
 }

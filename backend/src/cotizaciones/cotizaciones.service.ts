@@ -201,9 +201,9 @@ export class CotizacionesService {
       });
 
       if (alCrear) await alCrear(tx, cotizacion);
-      // Todo descuento lo autoriza un ADMIN: queda aprobado si quien guarda lo es; si no, nace la solicitud pendiente.
-      const autor = await actor(tx, tenantId, usuarioId);
-      const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId, rol: autor.rol }, cotizacion);
+      // Todo descuento lo autoriza un ADMIN con una acción explícita: guardar solo crea la solicitud pendiente.
+      await actor(tx, tenantId, usuarioId);
+      const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId }, cotizacion);
       const hoy = new Date();
             return this.formatCotizacion(cotizacion, hoy, rol, autorizacion);
     });
@@ -372,9 +372,9 @@ export class CotizacionesService {
         },
       });
 
-      // La aprobación corresponde a un contenido exacto: si cambió, hay que autorizar de nuevo (o queda aprobado si edita un ADMIN).
-      const autor = await actor(tx, tenantId, usuarioId);
-      const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId, rol: autor.rol }, updated);
+      // La aprobación corresponde a un contenido exacto: si cambió, hay que autorizar de nuevo.
+      await actor(tx, tenantId, usuarioId);
+      const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId }, updated);
       // Una cotización ya enviada cuyo descuento dejó de estar autorizado vuelve a borrador: no queda «enviada» sin aprobación.
       if (autorizacion.requerida && autorizacion.estado !== 'APROBADA' && updated.estado === 'ENVIADA') {
         await tx.cotizacion.update({ where: { id }, data: { estado: 'BORRADOR' } });
@@ -463,8 +463,8 @@ export class CotizacionesService {
       });
 
       // La copia es un documento nuevo: su descuento necesita su propia autorización.
-      const autor = await actor(tx, tenantId, usuarioId);
-      const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId, rol: autor.rol }, duplicada);
+      await actor(tx, tenantId, usuarioId);
+      const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId }, duplicada);
       const hoy = new Date();
             return this.formatCotizacion(duplicada, hoy, rol, autorizacion);
     });
@@ -507,15 +507,15 @@ export class CotizacionesService {
 
   /**
    * Pide la autorización del descuento de una cotización que no la tiene (anterior a esta regla, o rechazada y se insiste).
-   * Si quien la pide es ADMIN, queda aprobada con su cuenta.
+   * Pedirla nunca la aprueba, aunque la pida un ADMIN.
    */
   async solicitarAutorizacionDescuento(tenantId: string, usuarioId: string, id: string, rol?: string) {
     return this.prisma.$transaction(async (tx) => {
       const c = await this.cotizacionBloqueada(tx, tenantId, id);
       if (c.estado === 'CONVERTIDA' || c.ventaId) throw new BadRequestException('La cotización ya se convirtió en venta');
       if (!tieneDescuento(c)) throw new BadRequestException('La cotización no tiene descuento: no necesita autorización');
-      const autor = await authorizedActor(tx, tenantId, usuarioId, ['ADMIN', 'CAJERO', 'VENDEDOR'], 'cotizaciones.crear');
-      const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId, rol: autor.rol }, c, { volverASolicitar: true });
+      await authorizedActor(tx, tenantId, usuarioId, ['ADMIN', 'CAJERO', 'VENDEDOR'], 'cotizaciones.crear');
+      const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId }, c, { volverASolicitar: true });
       return this.formatCotizacion(c, new Date(), rol, autorizacion);
     });
   }

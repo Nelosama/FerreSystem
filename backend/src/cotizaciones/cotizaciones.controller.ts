@@ -88,7 +88,7 @@ export class CotizacionesController {
     return this.cotizacionesService.updateEstado(tenantId, id, dto.estado, rol);
   }
 
-  // Pide al ADMIN que autorice el descuento (o lo vuelve a pedir tras un rechazo). Si lo pide un ADMIN, queda aprobado.
+  // Pide al ADMIN que autorice el descuento (o lo vuelve a pedir tras un rechazo). Pedirlo nunca lo aprueba.
   @Post(':id/autorizacion-descuento')
   @RequiredPermission('cotizaciones.crear')
   @Roles('ADMIN', 'VENDEDOR', 'CAJERO')

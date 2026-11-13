@@ -9,6 +9,8 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { ProductosService } from '../src/productos/productos.service';
 import { ProductosController } from '../src/productos/productos.controller';
 import { CotizacionesService } from '../src/cotizaciones/cotizaciones.service';
+import { AutorizacionesController } from '../src/autorizaciones/autorizaciones.controller';
+import { AutorizacionesService } from '../src/autorizaciones/autorizaciones.service';
 import { CotizacionesController } from '../src/cotizaciones/cotizaciones.controller';
 import { lockTenant } from '../src/operaciones/ledger';
 import { VentasService } from '../src/ventas/ventas.service';
@@ -75,8 +77,8 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     prisma = new PrismaService({ datasources: { db: { url } } });
     await prisma.$connect();
     const module = await Test.createTestingModule({
-      controllers: [ProductosController, CotizacionesController, VentasController, OperacionesController, AuthController, ClientesController, DashboardController],
-      providers: [ProductosService, CotizacionesService, VentasService, OperacionesService, JwtStrategy, AuthService, ClientesService, DashboardService,
+      controllers: [ProductosController, CotizacionesController, AutorizacionesController, VentasController, OperacionesController, AuthController, ClientesController, DashboardController],
+      providers: [ProductosService, CotizacionesService, AutorizacionesService, VentasService, OperacionesService, JwtStrategy, AuthService, ClientesService, DashboardService,
         { provide: PrismaService, useValue: prisma }, { provide: JwtService, useValue: jwt },
         { provide: ConfigService, useValue: { get: (key: string, fallback?: unknown) => key === 'JWT_SECRET' ? jwtSecret : fallback } },
       ],
@@ -186,6 +188,8 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     }).expect(201);
     // Bruto 250, descuentos 20 + 10, base 220, ISV 33, total 253.
     expect(quote.body).toMatchObject({ subtotal: 230, descuento: 30, isv: 33, total: 253 });
+    // Decisión del 2026-11-12: el descuento lo aprueba un ADMIN de forma explícita antes de convertir.
+    await http('post', `/autorizaciones/${quote.body.autorizacionDescuento.solicitudId}/aprobar`).expect(201);
     const path = `/cotizaciones/${quote.body.id}/convertir`;
     const converted = await Promise.all([http('post', path, { metodoPago, ...autorizacion(metodoPago) }), http('post', path, { metodoPago, ...autorizacion(metodoPago) })]);
     expect(converted.map(r => r.status).sort((a, b) => a - b)).toEqual([201, 400]);
@@ -248,6 +252,7 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
       detalles: [{ productoId: a.id, cantidad: 2, descuento: 10, tipoDescuento: 'PORCENTAJE' }, { productoId: b.id, cantidad: 1 }],
     }).expect(201);
     expect(quote.body.isv).toBeGreaterThan(0);
+    await http('post', `/autorizaciones/${quote.body.autorizacionDescuento.solicitudId}/aprobar`).expect(201);
     const result = await http('post', `/cotizaciones/${quote.body.id}/convertir`, { metodoPago: 'TRANSFERENCIA', ...autorizacion('TRANSFERENCIA') }).expect(201);
     const sale = await prisma.venta.findUniqueOrThrow({ where: { id: result.body.ventaId } });
     // La venta guarda el subtotal bruto (antes de descuentos de línea); descuento, ISV y total coinciden con la cotización.

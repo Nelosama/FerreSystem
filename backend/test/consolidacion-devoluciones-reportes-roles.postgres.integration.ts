@@ -144,6 +144,7 @@ describe('Consolidación: devoluciones con descuento por línea, base del resume
       const cotizacion = await cotizaciones.create(tenantId, adminId, { detalles: [
         { productoId: productoA, cantidad: 1, descuento: 100, tipoDescuento: 'PORCENTAJE' }, { productoId: productoB, cantidad: 1 },
       ] } as any);
+      await aprobarDescuento(cotizacion.id);
       const conversion = await cotizaciones.convertirAVenta(tenantId, adminId, cotizacion.id, 'EFECTIVO');
       const venta = await ops.buscarVenta(tenantId, String(conversion.numeroVenta), 'ADMIN', adminId);
       const lineaA = venta.items.find((i: any) => i.codigo === 'A');

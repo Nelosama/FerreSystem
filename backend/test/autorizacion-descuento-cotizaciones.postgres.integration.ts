@@ -257,11 +257,23 @@ describe('Autorización de descuentos en cotizaciones / HTTP y PostgreSQL aislad
     expect((await prisma.solicitudAutorizacion.findUniqueOrThrow({ where: { id: s.id } })).estado).toBe('PENDIENTE');
   });
 
-  it('ADMIN que guarda con descuento queda autorizado por su cuenta; duplicar exige autorización nueva', async () => {
+  it('guardar nunca aprueba, aunque guarde un ADMIN: hace falta aprobar de forma explícita; duplicar exige autorización nueva', async () => {
     const cot = (await como(admin).post('/cotizaciones', conDescuento()).expect(201)).body;
-    expect(cot.autorizacionDescuento).toMatchObject({ estado: 'APROBADA' });
+    expect(cot.autorizacionDescuento).toMatchObject({ estado: 'PENDIENTE', solicitanteId: admin });
     const [s] = await solicitudes(cot.id);
-    expect(s).toMatchObject({ estado: 'APROBADA', solicitanteId: admin, decisorId: admin });
+    expect(s).toMatchObject({ estado: 'PENDIENTE', solicitanteId: admin, decisorId: null, decididaAt: null });
+    await como(admin).patch(`/cotizaciones/${cot.id}/estado`, { estado: 'ENVIADA' }).expect(409);
+    await como(admin).post(`/cotizaciones/${cot.id}/convertir`).expect(409);
+    // Volver a guardar el mismo contenido tampoco aprueba.
+    await como(admin).put(`/cotizaciones/${cot.id}`, conDescuento()).expect(200);
+    expect((await solicitudes(cot.id)).map((x) => x.estado)).toEqual(['PENDIENTE']);
+    expect(await auditoria('AUTORIZACION_APROBADA')).toHaveLength(0);
+    // Pedirla expresamente tampoco la aprueba.
+    await como(admin).post(`/cotizaciones/${cot.id}/autorizacion-descuento`).expect(201);
+    expect((await solicitudes(cot.id)).map((x) => x.estado)).toEqual(['PENDIENTE']);
+    // Aprobación explícita: el decisor queda registrado aparte de quien guardó.
+    const aprobada = (await como(admin2).post(`/autorizaciones/${s.id}/aprobar`).expect(201)).body;
+    expect(aprobada).toMatchObject({ estado: 'APROBADA', solicitanteId: admin, decisorId: admin2 });
     await como(admin).patch(`/cotizaciones/${cot.id}/estado`, { estado: 'ENVIADA' }).expect(200);
 
     const copia = (await como(cajero).post(`/cotizaciones/${cot.id}/duplicar`).expect(201)).body;
@@ -270,7 +282,7 @@ describe('Autorización de descuentos en cotizaciones / HTTP y PostgreSQL aislad
   });
 
   it('cotización con descuento anterior a la regla: bloqueada hasta que se solicita y aprueba', async () => {
-    const cot = (await como(admin).post('/cotizaciones', conDescuento()).expect(201)).body;
+    const cot = (await como(cajero).post('/cotizaciones', conDescuento()).expect(201)).body;
     // Simula un dato anterior a esta etapa: sin solicitudes registradas.
     await prisma.solicitudAutorizacion.deleteMany({ where: { entidadId: cot.id } });
     const vista = (await como(cajero).get(`/cotizaciones/${cot.id}`).expect(200)).body;
