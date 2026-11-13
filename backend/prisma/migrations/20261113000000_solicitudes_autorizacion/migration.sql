@@ -33,6 +33,8 @@ CREATE INDEX "solicitudes_autorizacion_entidad_idx" ON "solicitudes_autorizacion
 CREATE UNIQUE INDEX "solicitudes_autorizacion_pendiente_key" ON "solicitudes_autorizacion"("tenant_id", "tipo", "entidad_id") WHERE "estado" = 'PENDIENTE';
 
 ALTER TABLE "solicitudes_autorizacion" ADD CONSTRAINT "solicitudes_autorizacion_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
--- Solicitante y decisor pertenecen a la misma empresa que la solicitud (FK compuesta con tenant_id).
-ALTER TABLE "solicitudes_autorizacion" ADD CONSTRAINT "solicitudes_autorizacion_solicitante_fkey" FOREIGN KEY ("tenant_id", "solicitante_id") REFERENCES "usuarios"("tenant_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "solicitudes_autorizacion" ADD CONSTRAINT "solicitudes_autorizacion_decisor_fkey" FOREIGN KEY ("tenant_id", "decisor_id") REFERENCES "usuarios"("tenant_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- FK simples a usuarios(id). No se usa una FK compuesta (tenant_id, id) porque dependería de usuarios_tenant_id_id_key,
+-- que la reversión manual de #148 elimina. Que solicitante y decisor sean de la misma empresa lo exige el servicio
+-- (lee al usuario con filtro de empresa dentro de la misma transacción).
+ALTER TABLE "solicitudes_autorizacion" ADD CONSTRAINT "solicitudes_autorizacion_solicitante_fkey" FOREIGN KEY ("solicitante_id") REFERENCES "usuarios"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "solicitudes_autorizacion" ADD CONSTRAINT "solicitudes_autorizacion_decisor_fkey" FOREIGN KEY ("decisor_id") REFERENCES "usuarios"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

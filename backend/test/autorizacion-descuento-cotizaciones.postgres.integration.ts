@@ -302,9 +302,9 @@ describe('Autorización de descuentos en cotizaciones / HTTP y PostgreSQL aislad
       randomUUID(), tenantId, estado, cot.id, cajero, decisor);
     await expect(insertar('PENDIENTE', null)).rejects.toThrow(/23505.*\(tenant_id, tipo, entidad_id\)/);
     await expect(insertar('APROBADA', null)).rejects.toThrow(/23514|solicitudes_autorizacion_decision_chk/);
-    // El solicitante debe ser de la misma empresa.
+    // El solicitante debe existir (la empresa la exige el servicio; ver la prueba de aislamiento).
     await expect(prisma.$executeRawUnsafe(
       `INSERT INTO solicitudes_autorizacion (id, tenant_id, tipo, entidad_id, operacion_hash, solicitante_id) VALUES ($1, $2, 'DESCUENTO_COTIZACION', $3, 'x', $4)`,
-      randomUUID(), tenantId, randomUUID(), adminOtro)).rejects.toThrow(/23503|solicitudes_autorizacion_solicitante_fkey/);
+      randomUUID(), tenantId, randomUUID(), randomUUID())).rejects.toThrow(/23503|solicitudes_autorizacion_solicitante_fkey/);
   });
 });

@@ -1082,8 +1082,10 @@ model SolicitudAutorizacion {
   motivoDecision String?                     @map("motivo_decision")
 
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "solicitudes_autorizacion_tenant_id_fkey")
-  solicitante Usuario  @relation("AutorizacionSolicitante", fields: [tenantId, solicitanteId], references: [tenantId, id], onDelete: Restrict, map: "solicitudes_autorizacion_solicitante_fkey")
-  decisor     Usuario? @relation("AutorizacionDecisor", fields: [tenantId, decisorId], references: [tenantId, id], onDelete: Restrict, map: "solicitudes_autorizacion_decisor_fkey")
+  // FK simples a usuarios(id): una FK compuesta dependería de usuarios_tenant_id_id_key, que la reversión manual de #148
+  // (prisma/propuestas/entregas-148/03_rollback_con_respaldo.sql) elimina. La empresa del usuario la exige el servicio.
+  solicitante Usuario  @relation("AutorizacionSolicitante", fields: [solicitanteId], references: [id], onDelete: Restrict, map: "solicitudes_autorizacion_solicitante_fkey")
+  decisor     Usuario? @relation("AutorizacionDecisor", fields: [decisorId], references: [id], onDelete: Restrict, map: "solicitudes_autorizacion_decisor_fkey")
 
   @@index([tenantId, estado, solicitadaAt], map: "solicitudes_autorizacion_tenant_estado_idx")
   @@index([tenantId, tipo, entidadId], map: "solicitudes_autorizacion_entidad_idx")

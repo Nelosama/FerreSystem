@@ -422,7 +422,7 @@ describe('Ventas / PostgreSQL aislado', () => {
     const cot = await cotizaciones.create(tenantId, usuarioId, { ...request(1), clienteId: cliente.id });
     expect(cot.clienteId).toBe(cliente.id);
     expect(cot.clienteNombre).toBe('Ana');
-    expect((await cotizaciones.update(tenantId, cot.id, request(1))).clienteId).toBe(cliente.id);
+    expect((await cotizaciones.update(tenantId, cot.id, request(1), usuarioId)).clienteId).toBe(cliente.id);
     const manual = await cotizaciones.update(tenantId, cot.id, { ...request(1), clienteId: null, clienteNombre: 'Manual' }, usuarioId);
     expect(manual.clienteId).toBeNull();
     expect(manual.clienteNombre).toBe('Manual');

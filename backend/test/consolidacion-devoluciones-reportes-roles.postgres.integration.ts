@@ -8,6 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { VentasService } from '../src/ventas/ventas.service';
 import { OperacionesService } from '../src/operaciones/operaciones.service';
 import { CotizacionesService } from '../src/cotizaciones/cotizaciones.service';
+import { AutorizacionesService } from '../src/autorizaciones/autorizaciones.service';
 import { DashboardService } from '../src/dashboard/dashboard.service';
 
 // Regresiones de la auditoría del 10-nov-2026 contra PostgreSQL real (clúster temporal exclusivo; nunca lee DATABASE_URL):
@@ -25,6 +26,11 @@ describe('Consolidación: devoluciones con descuento por línea, base del resume
   let ventas: VentasService;
   let ops: OperacionesService;
   let cotizaciones: CotizacionesService;
+  let autorizaciones: AutorizacionesService;
+  const aprobarDescuento = async (cotizacionId: string) => {
+    const solicitud = await prisma.solicitudAutorizacion.findFirstOrThrow({ where: { tenantId, entidadId: cotizacionId, estado: 'PENDIENTE' } });
+    await autorizaciones.aprobar(tenantId, adminId, solicitud.id);
+  };
 
   let tenantId: string;
   let adminId: string;
@@ -58,6 +64,7 @@ describe('Consolidación: devoluciones con descuento por línea, base del resume
     ventas = new VentasService(prisma);
     ops = new OperacionesService(prisma);
     cotizaciones = new CotizacionesService(prisma);
+    autorizaciones = new AutorizacionesService(prisma, cotizaciones);
   }, 120000);
 
   afterAll(async () => {
@@ -100,6 +107,8 @@ describe('Consolidación: devoluciones con descuento por línea, base del resume
         { productoId: productoA, cantidad: 1, descuento: 20, tipoDescuento: 'MONTO' }, { productoId: productoB, cantidad: 1 },
       ] } as any);
       expect(cotizacion.total).toBe(207);
+      // Decisión del 2026-11-12: el descuento lo autoriza un ADMIN antes de convertir.
+      await aprobarDescuento(cotizacion.id);
       const conversion = await cotizaciones.convertirAVenta(tenantId, cajeroId, cotizacion.id, 'EFECTIVO');
       const venta = await ops.buscarVenta(tenantId, String(conversion.numeroVenta), 'ADMIN', adminId);
       const lineaA = venta.items.find((i: any) => i.codigo === 'A');
@@ -122,6 +131,8 @@ describe('Consolidación: devoluciones con descuento por línea, base del resume
         { productoId: productoA, cantidad: 1, descuento: 20, tipoDescuento: 'MONTO' }, { productoId: productoB, cantidad: 1 },
       ] } as any);
       expect(cotizacion.total).toBe(186.3);
+      // Decisión del 2026-11-12: el descuento lo autoriza un ADMIN antes de convertir.
+      await aprobarDescuento(cotizacion.id);
       const conversion = await cotizaciones.convertirAVenta(tenantId, cajeroId, cotizacion.id, 'EFECTIVO');
       const venta = await ops.buscarVenta(tenantId, String(conversion.numeroVenta), 'ADMIN', adminId);
       const lineaA = venta.items.find((i: any) => i.codigo === 'A');
