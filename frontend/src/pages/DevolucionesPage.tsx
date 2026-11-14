@@ -6,10 +6,23 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { SyncStatus } from '../components/SyncStatus';
 import { formatInstanteNegocio, formatLempiras } from '../utils/format';
 import { numeroVentaDesdeIdentificador } from '../utils/numeroVenta';
+import { alertas } from '../utils/alertas';
 import './OperacionesPage.css';
 
+const estadosReembolso: Record<string, string> = { PENDIENTE: 'Pendiente', COMPLETADO: 'Completado', SUSTITUIDO: 'Sustituido' };
+const metodosReembolso: Record<string, string> = { EFECTIVO: 'Efectivo', TARJETA: 'Reverso de tarjeta en el POS bancario', TRANSFERENCIA: 'Transferencia' };
+
 type Command = { kind: 'SOLICITAR' | 'EJECUTAR' | 'DECIDIR' | 'DIRECTA'; requestId: string; saleId?: string; dto?: any };
-const destinations: Record<string, string> = { INVENTARIO: 'Volver a existencias vendibles', 'DAÑADO': 'Producto dañado (no aumenta existencias)', PROVEEDOR: 'Devolver al proveedor (no aumenta existencias)', NO_ENTREGADO: 'Cancelar productos aún no entregados' };
+// Destino obligatorio por producto (decisión del 2026-11-12 y del dueño en #247): reintegro al inventario, garantía o
+// baja/merma, con códigos propios. DAÑADO y PROVEEDOR ya no se ofrecen, pero se conservan para mostrar datos anteriores.
+const destinations: Record<string, string> = {
+  INVENTARIO: 'Reintegro al inventario (vuelve a existencias vendibles)',
+  GARANTIA: 'Garantía (no aumenta existencias)',
+  MERMA: 'Baja / merma (no aumenta existencias)',
+  NO_ENTREGADO: 'Cancelar productos aún no entregados',
+  'DAÑADO': 'Producto dañado (registro anterior; no aumenta existencias)',
+  PROVEEDOR: 'Devuelto al proveedor (registro anterior; no aumenta existencias)',
+};
 const statuses: Record<string, string> = { PENDIENTE: 'Esperando al administrador', AUTORIZADA: 'Autorizada: falta confirmar devolución', RECHAZADA: 'Rechazada', EJECUTADA: 'Devolución registrada' };
 const errorMessage = (e: any) => {
   const message = e.response?.data?.message;
@@ -36,6 +49,7 @@ export const DevolucionesPage: React.FC = () => {
   const [sale, setSale] = useState<any>(null);
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [targets, setTargets] = useState<Record<string, string>>({});
+  const [conditions, setConditions] = useState<Record<string, string>>({});
   const [motivo, setMotivo] = useState('');
   const [anulacion, setAnulacion] = useState(false);
   const [method, setMethod] = useState('EFECTIVO');
@@ -52,7 +66,7 @@ export const DevolucionesPage: React.FC = () => {
   const isAdmin = user?.rol === 'ADMIN';
 
   useEffect(() => {
-    setAnulacion(false); setSale(null); setQuantities({}); setTargets({}); setResult(null); setNumero(''); setMotivo(''); setMethod('EFECTIVO'); setNotice(''); setError(''); setDecisionNotes({}); setPage(0); setRequests([]); setPending(null); setCorrectionId(null); setCorrupt(false);
+    setAnulacion(false); setSale(null); setQuantities({}); setTargets({}); setConditions({}); setResult(null); setNumero(''); setMotivo(''); setMethod('EFECTIVO'); setNotice(''); setError(''); setDecisionNotes({}); setPage(0); setRequests([]); setPending(null); setCorrectionId(null); setCorrupt(false);
     try { setPending(readCommand(key)); } catch { setCorrupt(true); setError('No se puede leer la operación pendiente. Conserva este navegador y pide ayuda al administrador antes de registrar otra devolución.'); }
   }, [key]);
 
@@ -72,7 +86,7 @@ export const DevolucionesPage: React.FC = () => {
     try {
       const response = await api.get('/operaciones/ventas/buscar', { params: { numero: numeroVentaDesdeIdentificador(numero) } });
       if (scope.current !== startedKey) return;
-      setAnulacion(false); setSale(response.data); setQuantities({}); setTargets({});
+      setAnulacion(false); setSale(response.data); setQuantities({}); setTargets({}); setConditions({});
     } catch (e) { if (scope.current === startedKey) setError(errorMessage(e)); }
     finally { sending.current = false; setBusy(false); }
   };
@@ -192,6 +206,7 @@ export const DevolucionesPage: React.FC = () => {
       {notice && <p role="status">{notice}</p>}
       {result && <section className="operation-card" role="status"><h2>Devolución registrada</h2>
         <p>Importe: {formatLempiras(Number(result.monto))} · Crédito cancelado: {formatLempiras(Number(result.credito_cancelado))} · Reembolso: {formatLempiras(Number(result.reembolso))} ({result.metodo})</p>
+        {result.reembolso_estado === 'PENDIENTE' && <p>El reembolso quedó pendiente: registra la referencia en «Reembolsos» cuando el banco confirme el reverso o la transferencia.</p>}
         <p>Documento {result.id}</p><button className="btn btn-secondary" disabled={busy} onClick={() => {
           try {
             const stored = readCommand(key);
@@ -213,10 +228,11 @@ export const DevolucionesPage: React.FC = () => {
       </form>
       {sale && <form className="operation-card" onSubmit={e => {
         e.preventDefault(); if (blocked) return;
-        const items = sale.items.map((item: any) => ({ detalleId: item.id, cantidad: Number(quantities[item.id] || 0), destino: targets[item.id] || (item.sin_inventario ? 'PROVEEDOR' : sale.reserva_pendiente ? 'NO_ENTREGADO' : 'INVENTARIO') })).filter((item: any) => item.cantidad > 0);
+        // Condición del producto y motivo son opcionales: solo se envían si se escriben.
+        const items = sale.items.map((item: any) => ({ detalleId: item.id, cantidad: Number(quantities[item.id] || 0), destino: targets[item.id] || (item.sin_inventario ? 'GARANTIA' : sale.reserva_pendiente ? 'NO_ENTREGADO' : 'INVENTARIO'), ...(conditions[item.id]?.trim() ? { condicion: conditions[item.id].trim() } : {}) })).filter((item: any) => item.cantidad > 0);
         if (!items.length) { setError('Selecciona al menos un producto y la cantidad a devolver.'); return; }
         const requestId = correctionId || crypto.randomUUID();
-        void run({ kind: 'SOLICITAR', requestId, saleId: sale.id, dto: { solicitudId: requestId, motivo, metodo: method, items, ...(anulacion ? { anulacion: true } : {}) } });
+        void run({ kind: 'SOLICITAR', requestId, saleId: sale.id, dto: { solicitudId: requestId, ...(motivo.trim() ? { motivo: motivo.trim() } : {}), metodo: method, items, ...(anulacion ? { anulacion: true } : {}) } });
       }}>
         <h2>Venta {sale.numero_venta} · {sale.cliente_nombre || 'Consumidor final'}</h2>
         <p>{sale.metodo_pago} · Total {formatLempiras(Number(sale.total))} · {sale.reserva_pendiente ? 'Productos pendientes de entregar' : 'Productos entregados o documento histórico'}</p>
@@ -226,22 +242,24 @@ export const DevolucionesPage: React.FC = () => {
         }}>{anulacion ? 'Volver a devolución parcial' : 'Solicitar anulación de toda la venta'}</button>
         {anulacion && <p role="status">Anulación total: requiere el motivo y la autorización de otro administrador desde su propia sesión. El documento original se conserva y se genera una devolución compensatoria. Revise el destino físico de cada producto.</p>}
         <fieldset disabled={blocked}><legend>Productos que se devolverán</legend>
-          <div className="operation-table"><table><thead><tr><th>Producto</th><th>Disponible para devolver</th><th>Cantidad a devolver</th><th>Qué pasará con el producto</th></tr></thead><tbody>
+          <div className="operation-table"><table><thead><tr><th>Producto</th><th>Disponible para devolver</th><th>Cantidad a devolver</th><th>Qué pasará con el producto</th><th>Condición (opcional)</th></tr></thead><tbody>
             {sale.items.map((item: any) => {
               const rest = Number(item.cantidad) - Number(item.devuelto);
-              const choices = item.sin_inventario ? ['PROVEEDOR', 'DAÑADO'] : sale.reserva_pendiente ? ['NO_ENTREGADO'] : ['INVENTARIO', 'DAÑADO', 'PROVEEDOR'];
+              const choices = item.sin_inventario ? ['GARANTIA', 'MERMA'] : sale.reserva_pendiente ? ['NO_ENTREGADO'] : ['INVENTARIO', 'GARANTIA', 'MERMA'];
               return <tr key={item.id}><td>{item.codigo} · {item.nombre}</td><td>{rest} (ya devuelto: {Number(item.devuelto)})</td>
                 <td><input aria-label={`Devolver ${item.nombre}`} type="number" step=".01" min="0" max={rest} disabled={rest <= 0 || anulacion} value={quantities[item.id] || '0'} onChange={e => setQuantities({ ...quantities, [item.id]: e.target.value })} /></td>
-                <td><select aria-label={`Destino de ${item.nombre}`} value={targets[item.id] || choices[0]} onChange={e => setTargets({ ...targets, [item.id]: e.target.value })}>{choices.map(value => <option key={value} value={value}>{destinations[value]}</option>)}</select></td></tr>;
+                <td><select aria-label={`Destino de ${item.nombre}`} value={targets[item.id] || choices[0]} onChange={e => setTargets({ ...targets, [item.id]: e.target.value })}>{choices.map(value => <option key={value} value={value}>{destinations[value]}</option>)}</select></td>
+                <td><input aria-label={`Condición de ${item.nombre}`} className="form-input" maxLength={200} placeholder="Ej. caja abierta, sin uso" value={conditions[item.id] || ''} onChange={e => setConditions({ ...conditions, [item.id]: e.target.value })} /></td></tr>;
             })}
           </tbody></table></div>
-          <div className="operation-form"><label>{anulacion ? 'Motivo de la anulación' : 'Motivo de la devolución'}<input className="form-input" required maxLength={500} value={motivo} onChange={e => setMotivo(e.target.value)} /></label>
+          <div className="operation-form"><label>{anulacion ? 'Motivo de la anulación' : 'Motivo de la devolución (opcional)'}<input className="form-input" required={anulacion} maxLength={500} value={motivo} onChange={e => setMotivo(e.target.value)} /></label>
             <label>Método del reembolso<select className="form-input" value={method} onChange={e => setMethod(e.target.value)}>{['EFECTIVO', 'TARJETA', 'TRANSFERENCIA'].map(value => <option key={value}>{value}</option>)}</select></label></div>
-          <p>Se reduce primero el crédito pendiente; el excedente se registra como reembolso desde tu caja abierta. Solo los productos que vuelven a existencias vendibles aumentan el inventario. El reembolso con tarjeta o transferencia se registra aquí; el sistema no lo procesa en el banco.</p>
+          <p>Se reduce primero el crédito pendiente; el excedente se registra como reembolso desde tu caja abierta. Solo los productos que vuelven a existencias vendibles aumentan el inventario. En efectivo, el reembolso sale de la caja al confirmar. Con tarjeta queda pendiente hasta registrar la referencia del reverso en el POS bancario; con transferencia, hasta registrar su referencia. El sistema no mueve dinero en el banco.</p>
           <button className="btn btn-primary">Enviar solicitud de autorización</button>
         </fieldset>
-        <h3>Devoluciones anteriores</h3>{sale.devoluciones.length ? sale.devoluciones.map((item: any) => <p key={item.id}>{formatInstanteNegocio(item.created_at)} · {item.motivo} · {formatLempiras(Number(item.monto))}</p>) : <p>No hay devoluciones registradas para esta venta.</p>}
+        <h3>Devoluciones anteriores</h3>{sale.devoluciones.length ? sale.devoluciones.map((item: any) => <p key={item.id}>{formatInstanteNegocio(item.created_at)} · {item.motivo || 'Sin motivo indicado'} · {formatLempiras(Number(item.monto))}</p>) : <p>No hay devoluciones registradas para esta venta.</p>}
       </form>}
+      <ReembolsosSection isAdmin={isAdmin} readOnly={isReadOnly} refreshKey={key} />
       <section className="operation-card"><h2>{isAdmin ? 'Solicitudes para revisar' : 'Mis solicitudes'}</h2>
         <SyncStatus sync={sync} />
         {loading && <p role="status">Consultando solicitudes…</p>}
@@ -250,19 +268,18 @@ export const DevolucionesPage: React.FC = () => {
         {!loading && !listError && requests.map(request => <article className="operation-card" key={request.id}>
           <h3>{request.comando.anulacion ? 'Anulación' : 'Venta'} {request.numero_venta} · {statuses[request.estado] || request.estado}</h3>
           <p>Solicita: {request.solicitante_nombre} · {formatInstanteNegocio(request.created_at)}</p>
-          <p>Motivo: {request.comando.motivo} · Método propuesto: {request.comando.metodo}</p>
+          <p>Motivo: {request.comando.motivo || 'Sin motivo indicado'} · Método propuesto: {request.comando.metodo}</p>
           <p>Importe estimado a devolver: {formatLempiras(Number(request.monto_estimado))}. El crédito pendiente y el reembolso se calculan al confirmar.</p>
           <p>Total de la venta original: {formatLempiras(Number(request.total_venta))} · Pago original: {request.metodo_pago}</p>
           <ul>{request.items?.map((item: any, index: number) => <li key={index}>{item.codigo} · {item.nombre}: {item.cantidad} · {destinations[item.destino]}</li>)}</ul>
-          {request.administrador_nombre && <p>Decidió: {request.administrador_nombre} · {request.motivo_decision}</p>}
+          {request.administrador_nombre && <p>Decidió: {request.administrador_nombre}{request.motivo_decision ? ` · ${request.motivo_decision}` : ''}</p>}
           {isAdmin && request.solicitante_id !== user?.id && request.estado === 'PENDIENTE' && <form className="operation-form" onSubmit={e => {
             e.preventDefault(); if (blocked) return;
-            void run({ kind: 'DECIDIR', requestId: request.id, dto: { decision: 'AUTORIZADA', motivo: decisionNotes[request.id] || '' } });
-          }}><label>Motivo de la decisión<input className="form-input" required maxLength={500} disabled={blocked} value={decisionNotes[request.id] || ''} onChange={e => setDecisionNotes({ ...decisionNotes, [request.id]: e.target.value })} /></label>
+            void run({ kind: 'DECIDIR', requestId: request.id, dto: { decision: 'AUTORIZADA', ...(decisionNotes[request.id]?.trim() ? { motivo: decisionNotes[request.id].trim() } : {}) } });
+          }}><label>Motivo de la decisión (opcional)<input className="form-input" maxLength={500} disabled={blocked} value={decisionNotes[request.id] || ''} onChange={e => setDecisionNotes({ ...decisionNotes, [request.id]: e.target.value })} /></label>
             <button className="btn btn-primary" disabled={blocked}>Autorizar estos productos y cantidades</button>
             <button type="button" className="btn btn-secondary" disabled={blocked} onClick={() => {
-              if (!decisionNotes[request.id]?.trim()) { setError('Indica el motivo de la decisión.'); return; }
-              void run({ kind: 'DECIDIR', requestId: request.id, dto: { decision: 'RECHAZADA', motivo: decisionNotes[request.id] } });
+              void run({ kind: 'DECIDIR', requestId: request.id, dto: { decision: 'RECHAZADA', ...(decisionNotes[request.id]?.trim() ? { motivo: decisionNotes[request.id].trim() } : {}) } });
             }}>Rechazar solicitud</button></form>}
           {isAdmin && request.solicitante_id === user?.id && request.estado === 'PENDIENTE' && <p>Otro administrador debe revisar esta solicitud.</p>}
           {request.estado === 'AUTORIZADA' && request.solicitante_id === user?.id && <button className="btn btn-primary" disabled={blocked} onClick={() => void run({ kind: 'EJECUTAR', requestId: request.id })}>Confirmar devolución y reembolso</button>}
@@ -276,4 +293,68 @@ export const DevolucionesPage: React.FC = () => {
       </section>
     </main>
   </div>;
+};
+
+/**
+ * Reembolsos con estado (decisión del 2026-11-12). El servidor decide qué ve y qué puede hacer cada usuario; aquí solo se
+ * ofrecen las acciones. Registrar un reembolso no significa que el banco ya movió el dinero.
+ */
+const ReembolsosSection: React.FC<{ isAdmin: boolean; readOnly: boolean; refreshKey: string }> = ({ isAdmin, readOnly, refreshKey }) => {
+  const [lista, setLista] = useState<any[] | null>(null);
+  const [fallo, setFallo] = useState('');
+  const [aviso, setAviso] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  const [referencias, setReferencias] = useState<Record<string, string>>({});
+  const [evidencias, setEvidencias] = useState<Record<string, string>>({});
+  const [motivos, setMotivos] = useState<Record<string, string>>({});
+  const { refresh: cargar, sync } = useAutoRefresh<any[]>({
+    load: signal => api.get('/operaciones/reembolsos', { signal }).then(response => response.data?.reembolsos ?? []),
+    apply: data => setLista(data),
+    intervalMs: 30_000,
+    deps: [refreshKey],
+  });
+  const falloLista = lista === null && sync.phase === 'error' ? 'No se pudieron consultar los reembolsos. Se reintentará automáticamente.' : '';
+  const accion = async (peticion: () => Promise<unknown>, exito: string) => {
+    if (ocupado || readOnly) return;
+    setOcupado(true); setFallo(''); setAviso('');
+    try { await peticion(); setAviso(exito); }
+    catch (e) { setFallo(errorMessage(e)); }
+    finally { await cargar(); setOcupado(false); }
+  };
+  const completar = (r: any) => {
+    const referencia = referencias[r.id]?.trim();
+    if (!referencia) { setFallo('Registra la referencia del reverso o de la transferencia.'); return; }
+    void accion(() => api.post(`/operaciones/reembolsos/${r.id}/completar`, { referencia, ...(evidencias[r.id]?.trim() ? { evidencia: evidencias[r.id].trim() } : {}) }), 'Reembolso registrado como completado.');
+  };
+  const sinReverso = async (r: any, decision: 'ESPERAR' | 'EFECTIVO' | 'TRANSFERENCIA') => {
+    if (decision !== 'ESPERAR' && !(await alertas.confirmar({
+      texto: decision === 'EFECTIVO' ? `Se entregarán ${formatLempiras(Number(r.monto))} en efectivo desde tu caja y el reverso de tarjeta quedará sustituido. ¿Continuar?` : 'El reverso de tarjeta quedará sustituido por una transferencia pendiente de su referencia. ¿Continuar?',
+    }))) return;
+    void accion(() => api.post(`/operaciones/reembolsos/${r.id}/sin-reverso`, { decision, ...(motivos[r.id]?.trim() ? { motivo: motivos[r.id].trim() } : {}) }),
+      decision === 'ESPERAR' ? 'Intento registrado: el reverso sigue pendiente.' : decision === 'EFECTIVO' ? 'Reembolso entregado en efectivo.' : 'Reembolso por transferencia pendiente de su referencia.');
+  };
+  const pendientes = (lista ?? []).filter(r => r.estado === 'PENDIENTE');
+  return <section className="operation-card" aria-labelledby="titulo-reembolsos"><h2 id="titulo-reembolsos">Reembolsos</h2>
+    <p>Con tarjeta, intenta el reverso en el POS bancario y registra su referencia aquí. {isAdmin ? 'Si no se puede revertir, decide si esperar o reembolsar en efectivo o por transferencia.' : 'Si no se puede revertir, el administrador decide cómo reembolsar.'}</p>
+    {(fallo || falloLista) && <p role="alert" className="operation-error">{fallo || falloLista}</p>}
+    {aviso && <p role="status">{aviso}</p>}
+    {lista === null && !falloLista && <p role="status">Consultando reembolsos…</p>}
+    {lista !== null && !pendientes.length && <p>No hay reembolsos pendientes.</p>}
+    {pendientes.map(r => <article className="operation-card" key={r.id} data-testid={`reembolso-${r.id}`}>
+      <h3>Venta {r.numero_venta} · {formatLempiras(Number(r.monto))} · {metodosReembolso[r.metodo] || r.metodo} · {estadosReembolso[r.estado] || r.estado}</h3>
+      <p>Registró: {r.registrado_por_nombre} · {formatInstanteNegocio(r.registrado_at)}{r.intentos_fallidos > 0 ? ` · Intentos sin reverso: ${r.intentos_fallidos}` : ''}</p>
+      {r.nota && <p>Nota: {r.nota}</p>}
+      <div className="operation-form">
+        <label>Referencia bancaria<input className="form-input" maxLength={100} disabled={ocupado || readOnly} value={referencias[r.id] || ''} onChange={e => setReferencias({ ...referencias, [r.id]: e.target.value })} /></label>
+        <label>Evidencia (opcional)<input className="form-input" maxLength={500} placeholder="Ej. número de comprobante o descripción" disabled={ocupado || readOnly} value={evidencias[r.id] || ''} onChange={e => setEvidencias({ ...evidencias, [r.id]: e.target.value })} /></label>
+        <button type="button" className="btn btn-primary" disabled={ocupado || readOnly} onClick={() => completar(r)}>{r.metodo === 'TARJETA' ? 'Registrar reverso realizado' : 'Registrar transferencia realizada'}</button>
+      </div>
+      {isAdmin && r.metodo === 'TARJETA' && <div className="operation-form">
+        <label>Motivo (opcional)<input className="form-input" maxLength={500} disabled={ocupado || readOnly} value={motivos[r.id] || ''} onChange={e => setMotivos({ ...motivos, [r.id]: e.target.value })} /></label>
+        <button type="button" className="btn btn-secondary" disabled={ocupado || readOnly} onClick={() => void sinReverso(r, 'ESPERAR')}>No se pudo revertir: esperar</button>
+        <button type="button" className="btn btn-secondary" disabled={ocupado || readOnly} onClick={() => void sinReverso(r, 'EFECTIVO')}>Reembolsar en efectivo</button>
+        <button type="button" className="btn btn-secondary" disabled={ocupado || readOnly} onClick={() => void sinReverso(r, 'TRANSFERENCIA')}>Reembolsar por transferencia</button>
+      </div>}
+    </article>)}
+  </section>;
 };

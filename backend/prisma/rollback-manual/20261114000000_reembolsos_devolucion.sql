@@ -1,0 +1,7 @@
+-- NEXUS: reversión manual de emergencia, ejecutar solo con respaldo y backend anterior.
+-- El backend anterior ignora esta tabla y la columna: revertir código no requiere borrarlas.
+-- Borrarlas elimina el estado, la referencia y la evidencia de los reembolsos y la condición de lo devuelto. Exportar antes.
+-- DROP TABLE reembolsos;
+-- DROP TYPE "EstadoReembolso";
+-- DROP TYPE "MetodoReembolso";
+-- ALTER TABLE detalles_devolucion DROP COLUMN condicion;

@@ -13,6 +13,7 @@ import { estadoCuentaCliente } from './estado-cuenta-cliente';
 import { soloVentasPropias } from '../common/datos-por-rol';
 import { esMetodoElectronico, normalizarAutorizacion, registrarAprobacion } from './aprobaciones-bancarias';
 import { listarConciliaciones, registrarConciliacion } from './conciliacion-bancaria';
+import { registrarReembolso, textoOpcional, type MetodoReembolso } from './reembolsos';
 import { aplicarDestinosDevolucion, cent, entregarLineas, ROLES_ENTREGA, ROLES_CONSULTA, type DestinoDevolucion } from '../entregas/entregas-core';
 
 export interface FiltrosCuentas { clienteId?: string; proveedorId?: string; estado?: string; desde?: string; hasta?: string }
@@ -451,7 +452,10 @@ export class OperacionesService {
     if(pendiente)throw new ConflictException('La venta ya tiene una solicitud de anulación pendiente');
    }
    const {monto}=await this.planDevolucion(tx,tenantId,ventaId,dto);
-   text(dto.motivo,'Motivo');paymentMethod(dto.metodo);
+   // El motivo de una devolución es opcional (decisión del 2026-11-12). La anulación total de la venta conserva su regla
+   // anterior, que esa decisión no cambió: exige motivo.
+   if(dto.anulacion)text(dto.motivo,'Motivo de la anulación');
+   paymentMethod(dto.metodo);
    const [result]=await query(tx,'INSERT INTO solicitudes_devolucion(id,tenant_id,venta_id,solicitante_id,solicitud_hash,comando,monto_estimado) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,ventaId,userId,hash,JSON.stringify(dto),monto);
    await audit(tx,tenantId,userId,'DEVOLUCION_SOLICITAR',result.id,{ventaId,items:dto.items,motivo:dto.motivo,anulacion:!!dto.anulacion});return result;
   },{timeout:60000});
@@ -493,13 +497,14 @@ export class OperacionesService {
     const [sesion]=await query(tx,"SELECT id FROM sesiones_auth WHERE id=$1 AND sujeto_id=$2 AND tenant_id=$3 AND tipo='TENANT' AND revoked_at IS NULL AND expires_at>clock_timestamp() FOR SHARE",sesionHttp.sid,userId,tenantId);
     if(!sesion)throw new UnauthorizedException('Sesión cerrada o vencida. Inicie sesión de nuevo.');
    }
-   const motivo=text(dto.motivo,'Motivo de la decisión');
+   // Motivo opcional: sin texto se guarda NULL.
+   const motivo=textoOpcional(dto.motivo);
    if(!['AUTORIZADA','RECHAZADA'].includes(dto.decision))throw new BadRequestException('Decisión inválida');
    const [request]=await query(tx,'SELECT * FROM solicitudes_devolucion WHERE id IN ($1,$3) AND tenant_id=$2 FOR UPDATE',idRecurso(tenantId,requestId),tenantId,requestId);
    if(!request)throw new NotFoundException('Solicitud no encontrada');
    if(request.solicitante_id===userId)throw new ForbiddenException('El solicitante no puede autorizar ni rechazar su propia solicitud');
    if(request.estado!=='PENDIENTE'){
-    if(request.administrador_id===userId&&request.motivo_decision===motivo&&(request.estado===dto.decision||(request.estado==='EJECUTADA'&&dto.decision==='AUTORIZADA')))return request;
+    if(request.administrador_id===userId&&(request.motivo_decision??null)===motivo&&(request.estado===dto.decision||(request.estado==='EJECUTADA'&&dto.decision==='AUTORIZADA')))return request;
     throw new ConflictException('La solicitud ya tiene una decisión');
    }
    if(dto.decision==='AUTORIZADA')await this.planDevolucion(tx,tenantId,request.venta_id,request.comando);
@@ -553,16 +558,27 @@ export class OperacionesService {
     const [cash]=await query(tx,"SELECT COALESCE(SUM(monto),0) AS monto FROM movimientos_caja WHERE caja_id=$1 AND metodo='EFECTIVO'",caja.id);
     if(refund>money(Number(caja.monto_apertura)+Number(cash.monto)))throw new ConflictException('Efectivo insuficiente para reembolsar');
    }}
-   const [result]=await query(tx,'INSERT INTO devoluciones(id,tenant_id,venta_id,usuario_id,solicitud_hash,motivo,monto,credito_cancelado,reembolso,metodo,caja_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,v.id,userId,hash,text(dto.motivo,'Motivo'),monto,credito,refund,metodo,caja?.id||null);
+   const [result]=await query(tx,'INSERT INTO devoluciones(id,tenant_id,venta_id,usuario_id,solicitud_hash,motivo,monto,credito_cancelado,reembolso,metodo,caja_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,v.id,userId,hash,textoOpcional(dto.motivo)??'',monto,credito,refund,metodo,caja?.id||null);
    for(const item of dto.items){
     const d=details.find(d=>d.id===item.detalleId);
     const x=desgloses?.get(d.id);
-    await query(tx,'INSERT INTO detalles_devolucion(id,devolucion_id,detalle_venta_id,cantidad,destino,base_gravada,base_exenta,isv) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',id(),result.id,d.id,item.cantidad,item.destino,x?x.baseGravadaCentavos/100:null,x?x.baseExentaCentavos/100:null,x?x.isvCentavos/100:null);
+    await query(tx,'INSERT INTO detalles_devolucion(id,devolucion_id,detalle_venta_id,cantidad,destino,base_gravada,base_exenta,isv,condicion) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',id(),result.id,d.id,item.cantidad,item.destino,x?x.baseGravadaCentavos/100:null,x?x.baseExentaCentavos/100:null,x?x.isvCentavos/100:null,textoOpcional(item.condicion,200));
    }
-   // Existencias y contadores por línea: reingreso (INVENTARIO), sin reingreso (DAÑADO, PROVEEDOR) o liberación de la reserva (NO_ENTREGADO).
-   await aplicarDestinosDevolucion(tx,{tenantId,usuarioId:userId,ventaId:v.id,solicitudBase:dto.solicitudId,motivo:String(dto.motivo??'').trim(),items:dto.items.map(i=>({detalleId:i.detalleId,cantidad:i.cantidad,destino:i.destino as DestinoDevolucion}))});
-   if(caja)await cashMovement(tx,caja.id,userId,'DEVOLUCION',-refund,metodo,result.id,`Devolución de venta ${v.numero_venta}`);
-   await audit(tx,tenantId,userId,'VENTA_DEVOLVER',result.id,{ventaId,monto,credito,refund,metodo,items:dto.items});return result;
+   // Existencias y contadores por línea: reingreso (INVENTARIO), sin reingreso (GARANTIA, MERMA y los históricos DAÑADO, PROVEEDOR) o liberación de la reserva (NO_ENTREGADO).
+   await aplicarDestinosDevolucion(tx,{tenantId,usuarioId:userId,ventaId:v.id,solicitudBase:dto.solicitudId,
+    // El motivo es opcional (decisión del 2026-11-12), pero el evento físico de entrega exige un texto (entregas_eventos_motivo_chk).
+    motivo:textoOpcional(dto.motivo)??`Devolución de la venta ${v.numero_venta} (sin motivo indicado)`,items:dto.items.map(i=>({detalleId:i.detalleId,cantidad:i.cantidad,destino:i.destino as DestinoDevolucion}))});
+   // Reembolso con estado (decisión del 2026-11-12). En efectivo sale de la caja y queda completado al registrarse. Con tarjeta
+   // (reverso en el POS bancario) o transferencia queda PENDIENTE y sin movimiento de caja hasta registrar la referencia:
+   // registrarlo en Jowa no significa que el banco ya movió el dinero.
+   let reembolso:any=null;
+   if(refund>0){
+    if(metodo==='EFECTIVO')await cashMovement(tx,caja.id,userId,'DEVOLUCION',-refund,metodo,result.id,`Devolución de venta ${v.numero_venta}`);
+    // caja_id es la caja que recibió el movimiento: solo el efectivo lo tiene ahora; uno pendiente nace sin caja (revisión de #247).
+    reembolso=await registrarReembolso(tx,{tenantId,devolucionId:result.id,metodo:metodo as MetodoReembolso,monto:refund,usuarioId:userId,cajaId:metodo==='EFECTIVO'?caja.id:null,completado:metodo==='EFECTIVO'});
+   }
+   await audit(tx,tenantId,userId,'VENTA_DEVOLVER',result.id,{ventaId,monto,credito,refund,metodo,items:dto.items,reembolsoId:reembolso?.id??null,reembolsoEstado:reembolso?.estado??null});
+   return reembolso?{...result,reembolso_id:reembolso.id,reembolso_estado:reembolso.estado}:result;
  }
 
  async auditoria(tenantId:string,page:number){return consultarAuditoria(this.prisma,tenantId,page);}

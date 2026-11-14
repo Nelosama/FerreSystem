@@ -34,6 +34,8 @@ const test = base.extend<{ runtime: Runtime }>({
           '/operaciones/proveedores': [],
           '/operaciones/caja': [],
           '/operaciones/solicitudes-devolucion': [],
+          // Devoluciones (etapa 2): lista de reembolsos con estado.
+          '/operaciones/reembolsos': { reembolsos: [], page: 1, hayMas: false },
           '/operaciones/auditoria': [],
         };
         let response: unknown;

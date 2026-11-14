@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { OperacionesService } from './operaciones.service';
 import { OperacionesController } from './operaciones.controller';
-@Module({providers:[OperacionesService],controllers:[OperacionesController]})
+import { ReembolsosController, ReembolsosService } from './reembolsos';
+@Module({providers:[OperacionesService,ReembolsosService],controllers:[OperacionesController,ReembolsosController]})
 export class OperacionesModule {}
