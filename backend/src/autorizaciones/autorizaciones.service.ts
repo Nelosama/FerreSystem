@@ -87,18 +87,30 @@ export class AutorizacionesService {
     const fila = await this.fila(this.prisma as unknown as Tx, tenantId, id);
     if (usuario.rol !== 'ADMIN' && fila.solicitante_id !== usuarioId) throw new NotFoundException('Solicitud de autorización no encontrada');
     if (fila.estado !== 'PENDIENTE') throw new ConflictException(this.yaResuelta(fila));
-    if (TIPOS_CAJA.includes(fila.tipo)) {
-      // Apertura o cierre de caja: retirar la solicitud no cambia la caja; queda registrado quién y cuándo.
-      const cambiadas = await query<{ id: string }>(this.prisma as unknown as Tx, `UPDATE solicitudes_autorizacion
-        SET estado = 'CANCELADA', decisor_id = $3, decidida_at = now(), motivo_decision = 'Solicitud de caja retirada por quien la pidió'
-        WHERE id = $1 AND tenant_id = $2 AND estado = 'PENDIENTE' RETURNING id`, id, tenantId, usuarioId);
-      if (cambiadas.length !== 1) throw new ConflictException('La solicitud ya fue resuelta');
-      await audit(this.prisma as unknown as Tx, tenantId, usuarioId, 'AUTORIZACION_CANCELADA', id, { tipo: fila.tipo, entidadId: fila.entidad_id });
-      return vista(await this.fila(this.prisma as unknown as Tx, tenantId, id));
-    }
+    if (TIPOS_CAJA.includes(fila.tipo)) return this.prisma.$transaction((tx) => this.cancelarCaja(tx, tenantId, usuarioId, id));
     if (fila.tipo !== TIPO_DESCUENTO_COTIZACION) throw new ConflictException('Este tipo de solicitud no se puede cancelar desde aquí');
     await this.cotizaciones.quitarDescuento(tenantId, usuarioId, fila.entidad_id, usuario.rol);
     return vista(await this.fila(this.prisma as unknown as Tx, tenantId, id));
+  }
+
+  /**
+   * Apertura o cierre de caja: retirar la solicitud no cambia la caja; queda registrado quién y cuándo. Cambio de estado,
+   * auditoría y lectura final en una sola transacción: si la auditoría falla, la solicitud sigue PENDIENTE. La fila se
+   * bloquea (`FOR UPDATE`) y se vuelven a validar empresa, solicitante y estado, así que una aprobación o un rechazo
+   * concurrente y la cancelación se ordenan: la segunda en llegar recibe 409 y no deja estado ni auditoría propios.
+   */
+  private async cancelarCaja(tx: Tx, tenantId: string, usuarioId: string, id: string) {
+    const usuario = await actor(tx, tenantId, usuarioId);
+    const [actual] = await query<{ estado: string; solicitante_id: string }>(tx,
+      'SELECT estado::text AS estado, solicitante_id FROM solicitudes_autorizacion WHERE id = $1 AND tenant_id = $2 FOR UPDATE', id, tenantId);
+    if (!actual || (usuario.rol !== 'ADMIN' && actual.solicitante_id !== usuarioId)) throw new NotFoundException('Solicitud de autorización no encontrada');
+    if (actual.estado !== 'PENDIENTE') throw new ConflictException(this.yaResuelta(await this.fila(tx, tenantId, id)));
+    const cambiadas = await query<{ id: string; tipo: string; entidad_id: string }>(tx, `UPDATE solicitudes_autorizacion
+      SET estado = 'CANCELADA', decisor_id = $3, decidida_at = now(), motivo_decision = 'Solicitud de caja retirada por quien la pidió'
+      WHERE id = $1 AND tenant_id = $2 AND estado = 'PENDIENTE' RETURNING id, tipo::text AS tipo, entidad_id`, id, tenantId, usuarioId);
+    if (cambiadas.length !== 1) throw new ConflictException('La solicitud ya fue resuelta');
+    await audit(tx, tenantId, usuarioId, 'AUTORIZACION_CANCELADA', id, { tipo: cambiadas[0].tipo, entidadId: cambiadas[0].entidad_id });
+    return vista(await this.fila(tx, tenantId, id));
   }
 
   private async decidir(tenantId: string, usuarioId: string, id: string, decision: 'APROBADA' | 'RECHAZADA', motivoCrudo?: string) {

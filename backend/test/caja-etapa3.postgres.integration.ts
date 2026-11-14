@@ -228,6 +228,83 @@ describe('Caja — etapa 3 (cierre ciego, autonomía, traslado y avisos) / Postg
     expect((r.find((x) => x.status === 'rejected') as PromiseRejectedResult).reason).toBeInstanceOf(ConflictException);
   });
 
+  /** Solicitud de cierre PENDIENTE del cajero (cierre no autónomo). */
+  const solicitudCierre = async () => {
+    const c = await abrir(cajero, 100);
+    await configurar({ cierreAutonomo: false });
+    return (await ops.cerrar(tenantA, cajero, c.id, { monto: 100 } as any) as any).solicitudAutorizacionId as string;
+  };
+  const estadoDe = async (id: string) => (await sql('SELECT estado::text AS estado, decisor_id FROM solicitudes_autorizacion WHERE id=$1', id))[0];
+  const decisionesAuditadas = async (id: string) => (await sql(
+    "SELECT operacion, usuario_id FROM auditoria_operaciones WHERE entidad_id=$1 AND operacion IN ('AUTORIZACION_CANCELADA','AUTORIZACION_APROBADA','AUTORIZACION_RECHAZADA') ORDER BY created_at", id)) as { operacion: string; usuario_id: string }[];
+
+  it('cancelar una solicitud de caja es atómico: si falla la auditoría, la solicitud sigue PENDIENTE', async () => {
+    const id = await solicitudCierre();
+    // Revalidación de empresa y solicitante: otra empresa u otro cajero no la ven ni la cancelan.
+    await expect(autorizaciones.cancelar(tenantB, adminB, id)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(autorizaciones.cancelar(tenantA, cajero2, id)).rejects.toBeInstanceOf(NotFoundException);
+    expect((await estadoDe(id)).estado).toBe('PENDIENTE');
+    // Falla forzada solo para la auditoría de esta cancelación (base temporal de la prueba).
+    await prisma.$executeRawUnsafe(`CREATE FUNCTION prueba_falla_auditoria() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.operacion = 'AUTORIZACION_CANCELADA' AND NEW.entidad_id = '${id}' THEN RAISE EXCEPTION 'auditoría no disponible'; END IF; RETURN NEW; END $$`);
+    await prisma.$executeRawUnsafe('CREATE TRIGGER prueba_falla_auditoria BEFORE INSERT ON auditoria_operaciones FOR EACH ROW EXECUTE FUNCTION prueba_falla_auditoria()');
+    try {
+      await expect(autorizaciones.cancelar(tenantA, cajero, id)).rejects.toThrow(/auditoría no disponible/);
+      expect(await estadoDe(id)).toMatchObject({ estado: 'PENDIENTE', decisor_id: null });
+      expect(await decisionesAuditadas(id)).toEqual([]);
+    } finally {
+      await prisma.$executeRawUnsafe('DROP TRIGGER prueba_falla_auditoria ON auditoria_operaciones');
+      await prisma.$executeRawUnsafe('DROP FUNCTION prueba_falla_auditoria()');
+    }
+    // Sin la falla, la misma cancelación se completa con su auditoría.
+    expect(await autorizaciones.cancelar(tenantA, cajero, id)).toMatchObject({ estado: 'CANCELADA', decisorId: cajero });
+    expect(await decisionesAuditadas(id)).toEqual([{ operacion: 'AUTORIZACION_CANCELADA', usuario_id: cajero }]);
+  });
+
+  it('cancelación concurrente con una decisión: la que espera el bloqueo vuelve a validar y recibe 409, sin estado ni auditoría propios', async () => {
+    const id = await solicitudCierre();
+    // Un ADMIN aprueba dentro de una transacción que retiene la fila; la cancelación arranca mientras tanto (su lectura
+    // previa todavía ve PENDIENTE) y debe esperar el bloqueo y releer el estado ya decidido.
+    let liberar!: () => void;
+    const bloqueada = new Promise<void>((r) => { liberar = r; });
+    let aviso!: () => void;
+    const filaTomada = new Promise<void>((r) => { aviso = r; });
+    const aprobacion = prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe('SELECT id FROM solicitudes_autorizacion WHERE id=$1 FOR UPDATE', id);
+      aviso();
+      await bloqueada;
+      await tx.$queryRawUnsafe("UPDATE solicitudes_autorizacion SET estado='APROBADA', decisor_id=$2, decidida_at=now() WHERE id=$1", id, admin);
+      await tx.$queryRawUnsafe("INSERT INTO auditoria_operaciones (id,tenant_id,usuario_id,operacion,entidad_id,datos) VALUES ($1,$2,$3,'AUTORIZACION_APROBADA',$4,'{}'::jsonb)", randomUUID(), tenantA, admin, id);
+    }, { timeout: 20000 });
+    await filaTomada;
+    const cancelacion = autorizaciones.cancelar(tenantA, cajero, id);
+    await new Promise((r) => setTimeout(r, 300));
+    liberar();
+    await aprobacion;
+    await expect(cancelacion).rejects.toBeInstanceOf(ConflictException);
+    expect(await estadoDe(id)).toMatchObject({ estado: 'APROBADA', decisor_id: admin });
+    expect(await decisionesAuditadas(id)).toEqual([{ operacion: 'AUTORIZACION_APROBADA', usuario_id: admin }]);
+
+    // Carreras reales entre cancelar, aprobar y rechazar: una sola gana y estado y auditoría coinciden con ella.
+    for (let i = 0; i < 5; i += 1) {
+      const caja = (await sql("SELECT id FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado='ABIERTA'", tenantA, cajero))[0].id;
+      const sid = (await ops.cerrar(tenantA, cajero, caja, { monto: 100 + i + 1, notas: `Recuento ${i}` } as any) as any).solicitudAutorizacionId as string;
+      const r = await Promise.allSettled([
+        autorizaciones.cancelar(tenantA, cajero, sid),
+        autorizaciones.aprobar(tenantA, admin, sid),
+        autorizaciones.rechazar(tenantA, admin2, sid),
+      ]);
+      const ganadoras = r.filter((x) => x.status === 'fulfilled') as PromiseFulfilledResult<any>[];
+      expect(ganadoras).toHaveLength(1);
+      for (const x of r) if (x.status === 'rejected') expect(x.reason).toBeInstanceOf(ConflictException);
+      const final = await estadoDe(sid);
+      expect(final.estado).toBe(ganadoras[0].value.estado);
+      const auditadas = await decisionesAuditadas(sid);
+      expect(auditadas).toHaveLength(1);
+      expect(auditadas[0]).toEqual({ operacion: `AUTORIZACION_${final.estado}`, usuario_id: final.decisor_id });
+    }
+  });
+
   it('saldo trasladable: como máximo lo contado; la siguiente apertura de la misma persona queda vinculada', async () => {
     const c = await abrir(cajero, 100);
     await expect(ops.cerrar(tenantA, cajero, c.id, { monto: 100, montoTrasladado: 150 } as any)).rejects.toThrow(/no puede superar/);
