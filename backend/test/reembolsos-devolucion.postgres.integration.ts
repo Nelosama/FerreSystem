@@ -164,13 +164,14 @@ describe('Devoluciones y reembolsos con estado / PostgreSQL aislado', () => {
     const v = await venta(admin, 'TARJETA');
     const dev = await devolverDirecto(v.id, 'TARJETA');
     const r = await reembolsoDe(dev.id);
-    expect(r).toMatchObject({ metodo: 'TARJETA', estado: 'PENDIENTE', completado_por: null, completado_at: null });
+    // Pendiente: aún no hubo movimiento de caja, así que no se atribuye a ninguna caja.
+    expect(r).toMatchObject({ metodo: 'TARJETA', estado: 'PENDIENTE', completado_por: null, completado_at: null, caja_id: null });
     expect(await movimientosDe(dev.id)).toEqual([]);
     await expect(reembolsos.completar(tenantA, admin, r.id, { referencia: '   ' } as any)).rejects.toThrow(BadRequestException);
     // Un cajero ajeno a la devolución no la ve ni la completa.
     await expect(reembolsos.completar(tenantA, cajero2, r.id, { referencia: 'REV-1' } as any)).rejects.toThrow(NotFoundException);
     const hecho = await reembolsos.completar(tenantA, admin, r.id, { referencia: ' REV-778 ', evidencia: 'Voucher de anulación firmado' } as any);
-    expect(hecho).toMatchObject({ estado: 'COMPLETADO', referencia: 'REV-778', evidencia: 'Voucher de anulación firmado', completado_por: admin, completado_por_nombre: 'Admin A' });
+    expect(hecho).toMatchObject({ estado: 'COMPLETADO', referencia: 'REV-778', evidencia: 'Voucher de anulación firmado', completado_por: admin, completado_por_nombre: 'Admin A', caja_id: await cajaDe(admin) });
     expect(await movimientosDe(dev.id)).toEqual([{ metodo: 'TARJETA', monto: -Number(dev.reembolso), caja_id: await cajaDe(admin) }]);
     await expect(reembolsos.completar(tenantA, admin, r.id, { referencia: 'REV-779' } as any)).rejects.toThrow(ConflictException);
     const auditoria = await sql("SELECT operacion FROM auditoria_operaciones WHERE tenant_id=$1 AND entidad_id=$2 ORDER BY created_at", tenantA, r.id);
@@ -187,8 +188,22 @@ describe('Devoluciones y reembolsos con estado / PostgreSQL aislado', () => {
     await expect(reembolsos.sinReverso(tenantA, cajero, r.id, { decision: 'ESPERAR' } as any)).rejects.toThrow(ForbiddenException);
     expect((await reembolsos.listar(tenantA, cajero)).reembolsos.map((x: any) => x.id)).toEqual([r.id]);
     expect((await reembolsos.listar(tenantA, cajero2)).reembolsos).toEqual([]);
+    expect(r.caja_id).toBeNull();
     const hecho = await reembolsos.completar(tenantA, cajero, r.id, { referencia: 'REV-CAJ-1' } as any);
-    expect(hecho).toMatchObject({ estado: 'COMPLETADO', completado_por: cajero });
+    expect(hecho).toMatchObject({ estado: 'COMPLETADO', completado_por: cajero, caja_id: await cajaDe(cajero) });
+  });
+
+  it('el reembolso pendiente lo ejecuta el cajero y lo completa una ADMIN sin caja: no queda atribuido a la caja del cajero', async () => {
+    const v = await venta(cajero, 'TARJETA');
+    const solicitudId = randomUUID();
+    await ops.solicitarDevolucion(tenantA, cajero, v.id, { solicitudId, metodo: 'TARJETA', items: [{ detalleId: await linea(v.id), cantidad: 1, destino: await destino(v.id) }] } as any);
+    await ops.decidirDevolucion(tenantA, admin, solicitudId, { decision: 'AUTORIZADA' } as any);
+    const dev = await ops.ejecutarAutorizada(tenantA, cajero, solicitudId);
+    const r = await reembolsoDe(dev.id);
+    expect(r.caja_id).toBeNull();
+    const hecho = await reembolsos.completar(tenantA, admin2, r.id, { referencia: 'REV-SIN-CAJA' } as any);
+    expect(hecho).toMatchObject({ estado: 'COMPLETADO', completado_por: admin2, caja_id: null });
+    expect(await movimientosDe(dev.id)).toEqual([]);
   });
 
   it('tarjeta no revertida: ESPERAR anota el intento y sigue PENDIENTE; EFECTIVO sustituye y sale de la caja del ADMIN', async () => {
@@ -216,8 +231,9 @@ describe('Devoluciones y reembolsos con estado / PostgreSQL aislado', () => {
     expect(await movimientosDe(dev.id)).toEqual([]);
     const hecho = await reembolsos.completar(tenantA, admin2, nuevo.id, { referencia: 'TRF-2026-0001', evidencia: 'Comprobante de banca en línea' } as any);
     expect(hecho).toMatchObject({ estado: 'COMPLETADO', referencia: 'TRF-2026-0001' });
-    // La segunda ADMIN no tiene caja abierta: el reembolso se completa sin movimiento informativo de caja.
+    // La segunda ADMIN no tiene caja abierta: el reembolso se completa sin movimiento informativo de caja y sin caja atribuida.
     expect(await movimientosDe(dev.id)).toEqual([]);
+    expect(hecho.caja_id).toBeNull();
   });
 
   it('EFECTIVO sin caja abierta o sin efectivo suficiente: 409 y el reverso sigue PENDIENTE', async () => {

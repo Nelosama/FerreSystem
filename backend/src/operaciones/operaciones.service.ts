@@ -574,7 +574,8 @@ export class OperacionesService {
    let reembolso:any=null;
    if(refund>0){
     if(metodo==='EFECTIVO')await cashMovement(tx,caja.id,userId,'DEVOLUCION',-refund,metodo,result.id,`Devolución de venta ${v.numero_venta}`);
-    reembolso=await registrarReembolso(tx,{tenantId,devolucionId:result.id,metodo:metodo as MetodoReembolso,monto:refund,usuarioId:userId,cajaId:caja.id,completado:metodo==='EFECTIVO'});
+    // caja_id es la caja que recibió el movimiento: solo el efectivo lo tiene ahora; uno pendiente nace sin caja (revisión de #247).
+    reembolso=await registrarReembolso(tx,{tenantId,devolucionId:result.id,metodo:metodo as MetodoReembolso,monto:refund,usuarioId:userId,cajaId:metodo==='EFECTIVO'?caja.id:null,completado:metodo==='EFECTIVO'});
    }
    await audit(tx,tenantId,userId,'VENTA_DEVOLVER',result.id,{ventaId,monto,credito,refund,metodo,items:dto.items,reembolsoId:reembolso?.id??null,reembolsoEstado:reembolso?.estado??null});
    return reembolso?{...result,reembolso_id:reembolso.id,reembolso_estado:reembolso.estado}:result;

@@ -104,7 +104,8 @@ export class ReembolsosService {
   /**
    * Registra que el reverso de tarjeta o la transferencia ya se hizo, con su referencia bancaria (obligatoria) y evidencia
    * opcional. Lo registra el ADMIN o quien ejecutó la devolución. El movimiento informativo de caja (tarjeta o
-   * transferencia no cambian el efectivo esperado) se anota en la caja abierta de quien lo registra, si la tiene.
+   * transferencia no cambian el efectivo esperado) se anota en la caja abierta de quien lo registra, si la tiene. `caja_id`
+   * guarda exactamente esa caja, o NULL si no hubo movimiento: nunca la de otra sesión (revisión de #247).
    */
   async completar(tenantId: string, usuarioId: string, reembolsoId: string, dto: CompletarReembolsoDto) {
     const referencia = textoOpcional(dto.referencia, 100);
@@ -120,7 +121,7 @@ export class ReembolsosService {
       const caja = await cajaAbierta(tx, tenantId, usuarioId);
       if (caja) await cashMovement(tx, caja.id, usuarioId, 'DEVOLUCION', -Number(r.monto), r.metodo, r.devolucion_id, `Reembolso ${r.metodo === 'TARJETA' ? 'por reverso de tarjeta' : 'por transferencia'} · venta ${r.numero_venta}`);
       await query(tx, `UPDATE reembolsos SET estado='COMPLETADO', referencia=$3, evidencia=COALESCE($4, evidencia), nota=COALESCE($5, nota),
-        completado_por=$6, completado_at=now(), actualizado_at=now(), caja_id=COALESCE($7, caja_id)
+        completado_por=$6, completado_at=now(), actualizado_at=now(), caja_id=$7
         WHERE id=$1 AND tenant_id=$2 AND estado='PENDIENTE' RETURNING id`, r.id, tenantId, referencia, evidencia, nota, usuarioId, caja?.id ?? null);
       await audit(tx, tenantId, usuarioId, 'REEMBOLSO_COMPLETAR', r.id, { metodo: r.metodo, monto: Number(r.monto), referencia, evidencia, cajaId: caja?.id ?? null, devolucionId: r.devolucion_id });
       return this.fila(tx, tenantId, r.id);
