@@ -199,11 +199,31 @@ describe('Devoluciones y reembolsos con estado / PostgreSQL aislado', () => {
     await ops.solicitarDevolucion(tenantA, cajero, v.id, { solicitudId, metodo: 'TARJETA', items: [{ detalleId: await linea(v.id), cantidad: 1, destino: await destino(v.id) }] } as any);
     await ops.decidirDevolucion(tenantA, admin, solicitudId, { decision: 'AUTORIZADA' } as any);
     const dev = await ops.ejecutarAutorizada(tenantA, cajero, solicitudId);
+    // La devolución original sí se registró en la caja del cajero; el reembolso pendiente no hereda esa caja.
+    expect(dev.caja_id).toBe(await cajaDe(cajero));
     const r = await reembolsoDe(dev.id);
     expect(r.caja_id).toBeNull();
     const hecho = await reembolsos.completar(tenantA, admin2, r.id, { referencia: 'REV-SIN-CAJA' } as any);
     expect(hecho).toMatchObject({ estado: 'COMPLETADO', completado_por: admin2, caja_id: null });
     expect(await movimientosDe(dev.id)).toEqual([]);
+  });
+
+  it('sustituir por TRANSFERENCIA con caja abierta no asocia caja hasta completar; tarjeta y transferencia no cambian el efectivo esperado', async () => {
+    const v = await venta(admin, 'TARJETA');
+    const dev = await devolverDirecto(v.id, 'TARJETA');
+    const esperado = async () => (await ops.caja(tenantA, admin)).find((c: any) => c.estado === 'ABIERTA').efectivoEsperado;
+    const antes = await esperado();
+    const original = await reembolsoDe(dev.id);
+    // El ADMIN tiene caja abierta, pero la transferencia aún no se hizo: ni movimiento ni caja.
+    const nuevo = await reembolsos.sinReverso(tenantA, admin, original.id, { decision: 'TRANSFERENCIA' } as any);
+    expect(nuevo).toMatchObject({ metodo: 'TRANSFERENCIA', estado: 'PENDIENTE', caja_id: null });
+    expect((await sql('SELECT caja_id FROM reembolsos WHERE id=$1', original.id))[0].caja_id).toBeNull();
+    expect(await movimientosDe(dev.id)).toEqual([]);
+    // Al completar con caja abierta: movimiento informativo y caja_id en la caja de quien completa.
+    const hecho = await reembolsos.completar(tenantA, admin, nuevo.id, { referencia: 'TRF-CAJA-1' } as any);
+    expect(hecho.caja_id).toBe(await cajaDe(admin));
+    expect(await movimientosDe(dev.id)).toEqual([{ metodo: 'TRANSFERENCIA', monto: -Number(dev.reembolso), caja_id: await cajaDe(admin) }]);
+    expect(await esperado()).toBe(antes);
   });
 
   it('tarjeta no revertida: ESPERAR anota el intento y sigue PENDIENTE; EFECTIVO sustituye y sale de la caja del ADMIN', async () => {
@@ -214,8 +234,10 @@ describe('Devoluciones y reembolsos con estado / PostgreSQL aislado', () => {
     expect(espera).toMatchObject({ id: original.id, estado: 'PENDIENTE', intentos_fallidos: 1 });
     expect(espera.nota).toMatch(/Terminal sin conexión/);
     const nuevo = await reembolsos.sinReverso(tenantA, admin, original.id, { decision: 'EFECTIVO' } as any);
-    expect(nuevo).toMatchObject({ metodo: 'EFECTIVO', estado: 'COMPLETADO', reemplaza_a_id: original.id, completado_por: admin });
-    expect((await sql('SELECT estado::text AS estado FROM reembolsos WHERE id=$1', original.id))[0].estado).toBe('SUSTITUIDO');
+    // El efectivo sale de la caja del ADMIN que lo entrega: ahí van el movimiento y caja_id.
+    expect(nuevo).toMatchObject({ metodo: 'EFECTIVO', estado: 'COMPLETADO', reemplaza_a_id: original.id, completado_por: admin, caja_id: await cajaDe(admin) });
+    // El reverso sustituido nunca tuvo movimiento: sigue sin caja.
+    expect((await sql('SELECT estado::text AS estado, caja_id FROM reembolsos WHERE id=$1', original.id))[0]).toEqual({ estado: 'SUSTITUIDO', caja_id: null });
     expect(await movimientosDe(dev.id)).toEqual([{ metodo: 'EFECTIVO', monto: -Number(dev.reembolso), caja_id: await cajaDe(admin) }]);
     // Nada se borra: quedan el original sustituido y el nuevo.
     expect(Number((await sql('SELECT COUNT(*) AS n FROM reembolsos WHERE devolucion_id=$1', dev.id))[0].n)).toBe(2);
