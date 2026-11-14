@@ -52,8 +52,10 @@ if (ESCRIBE && admin && cajero) {
   const codigo = 'HUMO-' + randomUUID().slice(0, 8).toUpperCase();
   const prod = await llamar('POST', '/productos', admin.token, { codigo, nombre: 'Producto de humo ' + codigo, precioVenta: 100, precioCosto: 60, stockActual: 10, stockMinimo: 1 });
   if (!registrar('Alta de producto con existencias (administrador)', prod.s < 300, `HTTP ${prod.s}`)) process.exit(1);
+  // Cierre ciego (etapa 3): el cajero no recibe el esperado de su caja abierta; el administrador lo consulta en el detalle.
+  const esperadoAdmin = async (cajaId) => Number((await llamar('GET', `/operaciones/caja/${cajaId}`, admin.token)).b?.resumen?.efectivoEsperado);
   const abiertas = await llamar('GET', '/operaciones/caja', cajero.token);
-  for (const c of (abiertas.b || []).filter((x) => x.estado === 'ABIERTA')) await llamar('POST', `/operaciones/caja/${c.id}/cerrar`, cajero.token, { monto: Number(c.efectivoEsperado) });
+  for (const c of (abiertas.b || []).filter((x) => x.estado === 'ABIERTA')) await llamar('POST', `/operaciones/caja/${c.id}/cerrar`, cajero.token, { monto: await esperadoAdmin(c.id) });
   const caja = await llamar('POST', '/operaciones/caja/abrir', cajero.token, { solicitudId: randomUUID(), monto: 500 });
   registrar('Apertura de caja del cajero', caja.s < 300, `HTTP ${caja.s}`);
   const sid = randomUUID();
@@ -66,8 +68,10 @@ if (ESCRIBE && admin && cajero) {
   registrar('Confirmación de entrega (administrador)', ent.s < 300, `HTTP ${ent.s}`);
   const cajas = await llamar('GET', '/operaciones/caja', cajero.token);
   const abierta = (cajas.b || []).find((x) => x.id === caja.b?.id);
-  registrar('Efectivo esperado = fondo + cobro', !!abierta && Math.abs(Number(abierta.efectivoEsperado) - (500 + Number(venta.b.total))) < 0.01, `esperado ${abierta?.efectivoEsperado}`);
-  registrar('Cierre de caja sin diferencia', !!abierta && (await llamar('POST', `/operaciones/caja/${abierta.id}/cerrar`, cajero.token, { monto: Number(abierta.efectivoEsperado) })).s < 300);
+  registrar('El cajero no ve el efectivo esperado de su caja abierta (cierre ciego)', !!abierta && abierta.efectivoEsperado === undefined && abierta.resumen?.ciego === true);
+  const esperado = abierta ? await esperadoAdmin(abierta.id) : NaN;
+  registrar('Efectivo esperado = fondo + cobro (consultado por el administrador)', !!abierta && Math.abs(esperado - (500 + Number(venta.b.total))) < 0.01, `esperado ${esperado}`);
+  registrar('Cierre de caja sin diferencia', !!abierta && (await llamar('POST', `/operaciones/caja/${abierta.id}/cerrar`, cajero.token, { monto: esperado })).s < 300);
   const lista = await llamar('GET', '/ventas?limit=50', admin.token);
   registrar('La venta aparece en el historial del administrador', JSON.stringify(lista.b).includes(venta.b.id));
   const aud = superAdmin ? await auditoriaNegocio() : { b: null };

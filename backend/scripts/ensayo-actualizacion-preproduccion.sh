@@ -95,14 +95,16 @@ const out = {};
 // El administrador entrega la venta histórica con entrega pendiente (reserva 5).
 out.entregaHistorica = (await j('POST', '/operaciones/ventas/V_PEND/entregar', adm, { solicitudId: id(), receptorNombre: 'Cliente histórico' })).s;
 // Producto heredado aprobado: se vende; producto heredado sin precio: se rechaza.
+// Cierre ciego: el esperado de una caja abierta del cajero se consulta como administrador.
+const esperadoAdmin = async (cajaId) => Number((await j('GET', `/operaciones/caja/${cajaId}`, adm)).b?.resumen?.efectivoEsperado);
 const cajas = await j('GET', '/operaciones/caja', caj);
-for (const c of (cajas.b || []).filter((x) => x.estado === 'ABIERTA')) await j('POST', `/operaciones/caja/${c.id}/cerrar`, caj, { monto: Number(c.efectivoEsperado) });
+for (const c of (cajas.b || []).filter((x) => x.estado === 'ABIERTA')) await j('POST', `/operaciones/caja/${c.id}/cerrar`, caj, { monto: await esperadoAdmin(c.id) });
 const abierta = await j('POST', '/operaciones/caja/abrir', caj, { solicitudId: id(), monto: 100 });
 out.ventaProductoHeredado = (await j('POST', '/ventas', caj, { solicitudId: id(), metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles: [{ productoId: 'P-ACT', cantidad: 1 }] })).s;
 out.ventaProductoSinPrecio = (await j('POST', '/ventas', caj, { solicitudId: id(), metodoPago: 'EFECTIVO', tipoPago: 'CONTADO', detalles: [{ productoId: 'P-CERO', cantidad: 1 }] })).s;
 const c2 = await j('GET', '/operaciones/caja', caj);
 const ab = (c2.b || []).find((x) => x.id === abierta.b?.id);
-if (ab) await j('POST', `/operaciones/caja/${ab.id}/cerrar`, caj, { monto: Number(ab.efectivoEsperado) });
+if (ab) await j('POST', `/operaciones/caja/${ab.id}/cerrar`, caj, { monto: await esperadoAdmin(ab.id) });
 console.log(JSON.stringify(out));
 EON
 H="$(node "$WORK/historicos.mjs" "http://127.0.0.1:$API/api" "$PW")"; echo "   históricos: $H"
