@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export const ESTADOS_SOLICITUD = ['PENDIENTE', 'APROBADA', 'RECHAZADA', 'CANCELADA', 'INVALIDADA'] as const;
@@ -22,4 +22,10 @@ export class ListarAutorizacionesDto {
   @Max(100000)
   @IsOptional()
   page?: number;
+
+  /** Filtro por tipo, separado por comas (p. ej. APERTURA_CAJA,CIERRE_CAJA). */
+  @IsString()
+  @Matches(/^(DESCUENTO_COTIZACION|APERTURA_CAJA|CIERRE_CAJA)(,(DESCUENTO_COTIZACION|APERTURA_CAJA|CIERRE_CAJA))*$/)
+  @IsOptional()
+  tipo?: string;
 }

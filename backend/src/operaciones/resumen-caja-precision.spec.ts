@@ -7,12 +7,17 @@ describe('Caja — precisión monetaria del resumen y cierre', () => {
     { metodo: 'EFECTIVO', monto: '-1000000000.00' },
   ]).flat();
 
-  function servicio(movimientos: { metodo: string; monto: string }[], apertura = '0.00') {
+  // El resumen completo de una caja abierta lo ve el ADMIN: para quien no lo es, el cierre es ciego (etapa 3) y la vista
+  // omite el esperado. La precisión del cálculo es la misma; aquí se consulta como ADMIN.
+  function servicio(movimientos: { metodo: string; monto: string }[], apertura = '0.00', rol = 'ADMIN') {
     const caja = { id: 'caja', tenant_id: 'empresa', usuario_id: 'cajero', monto_apertura: apertura, estado: 'ABIERTA' };
     const consulta = vi.fn(async (sql: string, ...args: unknown[]) => {
       if (sql.startsWith('SELECT * FROM cajas')) return [caja];
       if (sql.startsWith('SELECT * FROM movimientos_caja')) return movimientos;
-      if (sql.startsWith('SELECT u.rol')) return [{ rol: 'CAJERO' }];
+      if (sql.startsWith('SELECT u.rol')) return [{ rol }];
+      // Conteos del cierre ciego: el cierre registra uno con el monto enviado.
+      if (sql.startsWith('INSERT INTO conteos_caja')) return [{ id: 'conteo', monto: args[4], esperado: args[5], diferencia: args[6] }];
+      if (sql.startsWith('SELECT COUNT(*)::int AS n FROM conteos_caja')) return [{ n: 1 }];
       if (sql.startsWith('UPDATE cajas SET')) return [{ ...caja, monto_cierre_fisico: args[0], monto_esperado: args[1], diferencia: args[2], estado: 'CERRADA' }];
       return [];
     });

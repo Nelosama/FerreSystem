@@ -59,6 +59,10 @@ const test = base.extend<{ sim: Sim }>({
         '/operaciones/solicitudes-devolucion': [], '/operaciones/auditoria': [],
       };
       if (method === 'GET' && path in vacias) return responder(route, 200, vacias[path]);
+      // Etapa 3: información de apertura, configuración y solicitudes de caja (ADMIN, tienda autónoma por defecto).
+      if (method === 'GET' && path === '/operaciones/caja/apertura') return responder(route, 200, { requiereAutorizacionApertura: false, requiereAutorizacionCierre: false, saldoTrasladado: null });
+      if (method === 'GET' && path === '/operaciones/caja/configuracion') return responder(route, 200, { aperturaAutonoma: true, cierreAutonomo: true, umbralAvisoDiferencia: 0 });
+      if (method === 'GET' && path === '/autorizaciones') return responder(route, 200, { solicitudes: [], pendientes: 0, page: 1, hayMas: false });
       if (method === 'GET' && path === '/operaciones/caja') return responder(route, 200, sim.cajas.filter(c => c.usuario_id === admin.id).map(vista));
       if (method === 'GET' && path === '/operaciones/caja/cierres') return responder(route, 200, sim.cajas.map(c => ({ ...c, efectivo_neto: c.movimientos.filter(m => m.metodo === 'EFECTIVO').reduce((s, m) => s + m.monto, 0) })));
       const detalle = path.match(/^\/operaciones\/caja\/([^/]+)$/);
@@ -90,6 +94,13 @@ const test = base.extend<{ sim: Sim }>({
         c.movimientos.push(m);
         sim.solicitudes.set(body.solicitudId, { path, body, respuesta: m });
         return responder(route, 201, m);
+      }
+      const conteo = path.match(/^\/operaciones\/caja\/([^/]+)\/conteos$/);
+      if (conteo) {
+        const c = sim.cajas.find(x => x.id === conteo[1]);
+        if (!c) return responder(route, 404, { message: 'Caja no encontrada' });
+        const diferencia = Math.round((body.monto - efectivoEsperado(c)) * 100) / 100;
+        return responder(route, 201, { conteoId: `conteo-${sim.posts.length}`, numero: 1, monto: body.monto, diferencia, resultado: diferencia === 0 ? 'CUADRA' : diferencia < 0 ? 'FALTA' : 'SOBRA' });
       }
       const cierre = path.match(/^\/operaciones\/caja\/([^/]+)\/cerrar$/);
       if (cierre) {
@@ -146,7 +157,10 @@ test.describe('Caja y arqueo — interfaz con backend simulado (E2E simulado)', 
     await expect(page.getByRole('heading', { name: 'Cierre de caja' })).toBeVisible();
 
     await page.getByLabel('Efectivo contado').fill('480');
-    await expect(page.getByText(/Faltante L\. 20\.00/)).toBeVisible();
+    // Cierre ciego (etapa 3): la diferencia se conoce al registrar el conteo, no mientras se escribe.
+    await expect(page.getByRole('button', { name: 'Cerrar caja' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Registrar conteo' }).click();
+    await expect(page.getByTestId('caja-resultado-conteo')).toContainText(/Conteo 1: Faltante L\. 20\.00/);
     const explicacion = page.getByLabel('Explique la diferencia');
     await expect(explicacion).toBeVisible();
     await expect(explicacion).toHaveAttribute('required', '');

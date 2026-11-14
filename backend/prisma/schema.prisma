@@ -159,6 +159,8 @@ model Tenant {
   cotizaciones     Cotizacion[]
   solicitudesAutorizacion SolicitudAutorizacion[]
   reembolsos       Reembolso[]
+  conteosCaja      ConteoCaja[]
+  configuracionCaja ConfiguracionCaja?
   secuencias       SecuenciaTenant[]
   modulos          TenantModule[]
   levantamientos   Levantamiento[]
@@ -256,6 +258,9 @@ model Usuario {
   autorizacionesDecididas   SolicitudAutorizacion[] @relation("AutorizacionDecisor")
   reembolsosRegistrados     Reembolso[] @relation("ReembolsoRegistrado")
   reembolsosCompletados     Reembolso[] @relation("ReembolsoCompletado")
+  cajasRevisadas            Caja[] @relation("CajaDiferenciaRevisada")
+  conteosCaja               ConteoCaja[] @relation("ConteoCajaUsuario")
+  configuracionesCaja       ConfiguracionCaja[] @relation("ConfiguracionCajaUsuario")
 
   coberturasCreadas CoberturaGarantia[] @relation("GarantiaCreadaPor")
   coberturasActualizadas CoberturaGarantia[] @relation("GarantiaActualizadaPor")
@@ -927,6 +932,12 @@ model Caja {
  fechaApertura DateTime @default(now()) @map("fecha_apertura")
  fechaCierre DateTime? @map("fecha_cierre")
  notas String?
+ // Etapa 3 (decisión del 2026-11-12): efectivo que queda para la siguiente apertura de la misma persona, vínculo con la caja
+ // de la que se trasladó saldo y revisión del aviso de diferencia por un ADMIN.
+ montoTrasladado Decimal? @map("monto_trasladado") @db.Decimal(12,2)
+ cajaAnteriorId String? @unique @map("caja_anterior_id")
+ diferenciaRevisadaPor String? @map("diferencia_revisada_por")
+ diferenciaRevisadaAt DateTime? @map("diferencia_revisada_at") @db.Timestamptz
  @@unique([tenantId,codigo])
  @@index([tenantId,estado])
  @@index([tenantId,usuarioId])
@@ -934,6 +945,46 @@ model Caja {
   tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   usuario     Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   movimientos MovimientoCaja[]
+  cajaAnterior Caja? @relation("CajaTraslado", fields: [cajaAnteriorId], references: [id], onDelete: Restrict, map: "cajas_caja_anterior_id_fkey")
+  cajaSiguiente Caja? @relation("CajaTraslado")
+  revisor     Usuario?      @relation("CajaDiferenciaRevisada", fields: [diferenciaRevisadaPor], references: [id], onDelete: Restrict, map: "cajas_diferencia_revisada_por_fkey")
+  conteos     ConteoCaja[]
+}
+
+// Conteos del cierre ciego (etapa 3, NEXUS 2026-11-14): cada conteo del cajero queda registrado con el esperado y la diferencia
+// calculados por el servidor en ese momento. El cierre usa el último conteo.
+model ConteoCaja {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  cajaId     String   @map("caja_id")
+  usuarioId  String   @map("usuario_id")
+  monto      Decimal  @db.Decimal(12, 2)
+  esperado   Decimal  @db.Decimal(12, 2)
+  diferencia Decimal  @db.Decimal(12, 2)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "conteos_caja_tenant_id_fkey")
+  caja    Caja    @relation(fields: [cajaId], references: [id], onDelete: Restrict, map: "conteos_caja_caja_id_fkey")
+  usuario Usuario @relation("ConteoCajaUsuario", fields: [usuarioId], references: [id], onDelete: Restrict, map: "conteos_caja_usuario_id_fkey")
+
+  @@index([cajaId, createdAt], map: "conteos_caja_caja_idx")
+  @@map("conteos_caja")
+}
+
+// Configuración de caja por tienda (etapa 3): la define solo un ADMIN. Sin fila rigen los valores por defecto (apertura y cierre
+// autónomos, umbral 0), que reproducen el comportamiento anterior.
+model ConfiguracionCaja {
+  tenantId              String   @id @map("tenant_id")
+  aperturaAutonoma      Boolean  @default(true) @map("apertura_autonoma")
+  cierreAutonomo        Boolean  @default(true) @map("cierre_autonomo")
+  umbralAvisoDiferencia Decimal  @default(0) @map("umbral_aviso_diferencia") @db.Decimal(12, 2)
+  actualizadoPor        String?  @map("actualizado_por")
+  actualizadoAt         DateTime @default(now()) @map("actualizado_at") @db.Timestamptz
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "configuracion_caja_tenant_id_fkey")
+  actualizador Usuario? @relation("ConfiguracionCajaUsuario", fields: [actualizadoPor], references: [id], onDelete: Restrict, map: "configuracion_caja_actualizado_por_fkey")
+
+  @@map("configuracion_caja")
 }
 model MovimientoCaja {
  id String @id @default(uuid())
@@ -1115,6 +1166,8 @@ model Reembolso {
 
 enum TipoSolicitudAutorizacion {
   DESCUENTO_COTIZACION
+  APERTURA_CAJA
+  CIERRE_CAJA
 }
 
 enum EstadoSolicitudAutorizacion {

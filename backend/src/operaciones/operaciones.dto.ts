@@ -63,6 +63,18 @@ export class AbrirCajaDto {
 export class CerrarCajaDto {
  @IsNumber({maxDecimalPlaces:2}) @Min(0) monto!: number;
  @IsOptional() @IsString() @MaxLength(500) notas?: string;
+ // Etapa 3: efectivo que queda para la siguiente apertura de la misma persona (como máximo, lo contado).
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) montoTrasladado?: number;
+}
+/** Cierre ciego: conteo del efectivo de la caja abierta propia. */
+export class ConteoCajaDto {
+ @IsNumber({maxDecimalPlaces:2}) @Min(0) monto!: number;
+}
+/** Configuración de caja de la tienda (solo ADMIN). */
+export class ConfiguracionCajaDto {
+ @IsBoolean() aperturaAutonoma!: boolean;
+ @IsBoolean() cierreAutonomo!: boolean;
+ @IsNumber({maxDecimalPlaces:2}) @Min(0) umbralAvisoDiferencia!: number;
 }
 export class MovimientoCajaDto {
  @IsUUID('4') solicitudId!: string;
