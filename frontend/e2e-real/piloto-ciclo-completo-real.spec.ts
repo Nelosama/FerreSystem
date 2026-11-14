@@ -14,6 +14,8 @@ const PSQL = `${process.env.PG_BIN ?? '/usr/lib/postgresql/16/bin'}/psql`;
 const DB = `postgresql://postgres@127.0.0.1:${process.env.E2E_PG_PORT ?? '55433'}/postgres`;
 const sql = (consulta: string) => execFileSync(PSQL, ['-X', '-At', '-F', '|', DB, '-c', consulta], { encoding: 'utf8' }).trim();
 const num = (consulta: string) => Number(sql(consulta));
+// Cierre ciego (etapa 3): el cajero no recibe el efectivo esperado de su caja abierta. Las pruebas lo leen de PostgreSQL.
+const esperadoDeCaja = (id: string) => Number(sql(`SELECT (c.monto_apertura + COALESCE((SELECT SUM(m.monto) FROM movimientos_caja m WHERE m.caja_id=c.id AND m.metodo='EFECTIVO'),0))::float FROM cajas c WHERE c.id='${id}'`));
 const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 const RUN = randomUUID().slice(0, 8).toUpperCase(); // el sistema normaliza los códigos a mayúsculas
 const ADMIN = 'admin.a@e2e.invalid';
@@ -103,7 +105,7 @@ test('2. consulta de existencias y precios: el administrador ve costo; el cajero
 test('3. el cajero abre caja con un fondo', async ({ request }) => {
   const abiertas = await request.get(`${API}/operaciones/caja`, { headers: auth(cajero.token) });
   for (const c of ((await abiertas.json()) as any[]).filter((x) => x.estado === 'ABIERTA')) {
-    await request.post(`${API}/operaciones/caja/${c.id}/cerrar`, { headers: auth(cajero.token), data: { monto: Number(c.efectivoEsperado) } });
+    await request.post(`${API}/operaciones/caja/${c.id}/cerrar`, { headers: auth(cajero.token), data: { monto: esperadoDeCaja(c.id) } });
   }
   const r = await request.post(`${API}/operaciones/caja/abrir`, { headers: auth(cajero.token), data: { solicitudId: randomUUID(), monto: 500 } });
   expect([200, 201], await r.text()).toContain(r.status());
@@ -231,7 +233,11 @@ test('9. cierre de caja: el efectivo esperado suma solo el efectivo; sin diferen
   const esperado = Math.round((500 + efectivo) * 100) / 100;
   const estado = await request.get(`${API}/operaciones/caja`, { headers: auth(cajero.token) });
   const caja = ((await estado.json()) as any[]).find((c) => c.id === cajaId);
-  expect(Number(caja.efectivoEsperado)).toBeCloseTo(esperado, 2); // tarjeta y transferencia NO suman al efectivo
+  // Cierre ciego: el cajero no recibe el esperado; el ADMIN lo consulta en el detalle de la caja.
+  expect(caja.efectivoEsperado).toBeUndefined();
+  expect(caja.resumen).toMatchObject({ ciego: true });
+  const detalleAdmin = await (await request.get(`${API}/operaciones/caja/${cajaId}`, { headers: auth(admin.token) })).json();
+  expect(Number(detalleAdmin.resumen.efectivoEsperado)).toBeCloseTo(esperado, 2); // tarjeta y transferencia NO suman al efectivo
   const sinNota = await request.post(`${API}/operaciones/caja/${cajaId}/cerrar`, { headers: auth(cajero.token), data: { monto: esperado + 7 } });
   expect(sinNota.status()).toBe(400);
   expect(sql(`SELECT estado FROM cajas WHERE id='${cajaId}'`)).toBe('ABIERTA');

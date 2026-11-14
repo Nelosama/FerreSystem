@@ -32,7 +32,14 @@ describe('Caja y arqueo / PostgreSQL aislado', () => {
   let productoId: string;
 
   const sql = (q: string, ...args: any[]) => prisma.$queryRawUnsafe<any[]>(q, ...args);
-  const cajaDe = async (userId: string) => (await ops.caja(tenantId, userId))[0];
+  // Cierre ciego (etapa 3): con la caja abierta, quien no es ADMIN no recibe el esperado. Estas pruebas verifican el cálculo, así
+  // que leen el resumen de una caja abierta ajena como ADMIN (ver caja-etapa3.postgres.integration.ts para la vista ciega).
+  const cajaDe = async (userId: string) => {
+    const [c] = await ops.caja(tenantId, userId);
+    if (!c || c.estado !== 'ABIERTA' || userId === adminId) return c;
+    const { resumen } = await ops.cajaDetalle(tenantId, adminId, c.id);
+    return { ...c, resumen, efectivoEsperado: resumen.efectivoEsperado, totales: resumen.totalesPorMetodo };
+  };
 
   beforeAll(async () => {
     if (!existsSync(exe('initdb'))) throw new Error(`PostgreSQL not installed at ${bin}`);

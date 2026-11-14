@@ -5,13 +5,13 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { RequiredModule } from '../common/decorators/required-module.decorator';
+import { RequiredAnyModule } from '../common/decorators/required-module.decorator';
 import { AutorizacionesService } from './autorizaciones.service';
 import { DecisionAutorizacionDto, ListarAutorizacionesDto } from './autorizaciones.dto';
 
-// Solicitudes de autorización. En esta etapa solo existen las de descuento de cotización, por eso el módulo requerido.
+// Solicitudes de autorización: descuentos de cotización (etapa 1) y apertura/cierre de caja (etapa 3).
 @Controller('autorizaciones')
-@RequiredModule('cotizaciones')
+@RequiredAnyModule('cotizaciones', 'arqueo_caja')
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Roles('ADMIN', 'CAJERO', 'VENDEDOR')
 export class AutorizacionesController {
@@ -19,7 +19,7 @@ export class AutorizacionesController {
 
   @Get()
   listar(@TenantId() tenantId: string, @CurrentUser('sub') usuarioId: string, @Query() filtro: ListarAutorizacionesDto) {
-    return this.service.listar(tenantId, usuarioId, filtro.estado, filtro.page);
+    return this.service.listar(tenantId, usuarioId, filtro.estado, filtro.page, filtro.tipo?.split(','));
   }
 
   // Consultar una solicitud (por ejemplo, al abrirla desde un aviso) nunca la aprueba.

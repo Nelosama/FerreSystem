@@ -14,6 +14,7 @@ import { soloVentasPropias } from '../common/datos-por-rol';
 import { esMetodoElectronico, normalizarAutorizacion, registrarAprobacion } from './aprobaciones-bancarias';
 import { listarConciliaciones, registrarConciliacion } from './conciliacion-bancaria';
 import { registrarReembolso, textoOpcional, type MetodoReembolso } from './reembolsos';
+import { CONDICION_AVISO_DIFERENCIA, configuracionCaja, exigirAutorizacionCaja, registrarConteo, saldoTrasladable, ultimoConteo, vistaConteo } from './caja-control';
 import { aplicarDestinosDevolucion, cent, entregarLineas, ROLES_ENTREGA, ROLES_CONSULTA, type DestinoDevolucion } from '../entregas/entregas-core';
 
 export interface FiltrosCuentas { clienteId?: string; proveedorId?: string; estado?: string; desde?: string; hasta?: string }
@@ -203,12 +204,23 @@ export class OperacionesService {
  async caja(tenantId:string,userId:string){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
+   const user=await actor(tx,tenantId,userId);
    const cajas=await query(tx,'SELECT * FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 ORDER BY fecha_apertura DESC LIMIT 30',tenantId,userId);
    for(const c of cajas){
     const movements=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1 ORDER BY created_at,id',c.id);c.movimientos=movements;
     c.resumen=this.resumenCaja(c,movements);c.efectivoEsperado=c.resumen.efectivoEsperado;c.totales=c.resumen.totalesPorMetodo;
+    Object.assign(c,await this.vistaCiega(tx,c,user.rol));
    }return cajas;
   });
+ }
+ /**
+  * Cierre ciego (etapa 3): mientras la caja está abierta, quien no es ADMIN no recibe el efectivo esperado ni los totales que
+  * permiten calcularlo; ve el fondo inicial y el resultado de su último conteo. Cerrada, el resumen completo vuelve a verse.
+  */
+ private async vistaCiega(tx:Tx,c:any,rol:string){
+  if(rol==='ADMIN'||c.estado!=='ABIERTA')return {};
+  const conteo=await ultimoConteo(tx,c.id);
+  return {resumen:{fondoInicial:Number(c.monto_apertura),ciego:true},efectivoEsperado:undefined,totales:undefined,ultimoConteo:conteo?vistaConteo(conteo.fila,conteo.numero):null};
  }
  async cajaDetalle(tenantId:string,userId:string,cajaId:string){
   return this.prisma.$transaction(async tx=>{
@@ -217,7 +229,61 @@ export class OperacionesService {
    const [c]=await query(tx,'SELECT c.*,u.nombre AS usuario_nombre FROM cajas c LEFT JOIN usuarios u ON u.id=c.usuario_id WHERE c.id=$1 AND c.tenant_id=$2',cajaId,tenantId);
    if(!c||(user.rol!=='ADMIN'&&c.usuario_id!==userId))throw new NotFoundException('Caja no encontrada');
    const movimientos=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1 ORDER BY created_at,id',c.id);
-   return {...c,movimientos,resumen:this.resumenCaja(c,movimientos)};
+   const conteos=user.rol==='ADMIN'||c.estado==='CERRADA'?await query(tx,'SELECT k.id,k.monto,k.esperado,k.diferencia,k.created_at,u.nombre AS usuario_nombre FROM conteos_caja k LEFT JOIN usuarios u ON u.id=k.usuario_id WHERE k.caja_id=$1 ORDER BY k.created_at,k.id',c.id):undefined;
+   return {...c,movimientos,resumen:this.resumenCaja(c,movimientos),...(conteos?{conteos}:{}),...(await this.vistaCiega(tx,c,user.rol))};
+  });
+ }
+ /** Cierre ciego: registra un conteo de la caja abierta propia y devuelve si cuadra, falta o sobra y cuánto (sin el esperado). */
+ async conteoCaja(tenantId:string,userId:string,cajaId:string,dto:{monto:number}){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','VENDEDOR']);
+   const monto=decimal(dto.monto,'Efectivo contado');
+   const [c]=await query(tx,'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3 FOR UPDATE',cajaId,tenantId,userId);if(!c)throw new NotFoundException('Caja no encontrada');
+   if(c.estado!=='ABIERTA')throw new ConflictException('La caja ya está cerrada');
+   const movements=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1',c.id);
+   const conteo=await registrarConteo(tx,{tenantId,cajaId:c.id,usuarioId:userId,monto,esperado:this.resumenCaja(c,movements).efectivoEsperado});
+   return vistaConteo(conteo.fila,conteo.numero);
+  });
+ }
+ /** Lo que la pantalla necesita antes de abrir: si la apertura/cierre requiere autorización y el saldo trasladado. */
+ async aperturaCaja(tenantId:string,userId:string){
+  return this.prisma.$transaction(async tx=>{
+   const user=await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','VENDEDOR']);
+   const cfg=await configuracionCaja(tx,tenantId);
+   const esAdmin=user.rol==='ADMIN';
+   return {requiereAutorizacionApertura:!esAdmin&&!cfg.aperturaAutonoma,requiereAutorizacionCierre:!esAdmin&&!cfg.cierreAutonomo,saldoTrasladado:await saldoTrasladable(tx,tenantId,userId)};
+  });
+ }
+ async configuracionCaja(tenantId:string,userId:string){
+  return this.prisma.$transaction(async tx=>{await authorizedActor(tx,tenantId,userId,['ADMIN']);return configuracionCaja(tx,tenantId);});
+ }
+ /** Solo ADMIN configura la autonomía de apertura/cierre y el umbral de los avisos informativos de diferencia. */
+ async guardarConfiguracionCaja(tenantId:string,userId:string,dto:{aperturaAutonoma:boolean;cierreAutonomo:boolean;umbralAvisoDiferencia:number}){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN']);
+   const umbral=decimal(dto.umbralAvisoDiferencia,'Umbral de aviso');
+   const antes=await configuracionCaja(tx,tenantId);
+   await query(tx,`INSERT INTO configuracion_caja (tenant_id,apertura_autonoma,cierre_autonomo,umbral_aviso_diferencia,actualizado_por,actualizado_at) VALUES ($1,$2,$3,$4,$5,now())
+     ON CONFLICT (tenant_id) DO UPDATE SET apertura_autonoma=EXCLUDED.apertura_autonoma,cierre_autonomo=EXCLUDED.cierre_autonomo,umbral_aviso_diferencia=EXCLUDED.umbral_aviso_diferencia,actualizado_por=EXCLUDED.actualizado_por,actualizado_at=now() RETURNING tenant_id`,
+     tenantId,dto.aperturaAutonoma,dto.cierreAutonomo,umbral,userId);
+   const despues=await configuracionCaja(tx,tenantId);
+   await audit(tx,tenantId,userId,'CAJA_CONFIGURAR',tenantId,{antes,despues});
+   return despues;
+  });
+ }
+ /** Un ADMIN marca como revisado el aviso de un cierre con diferencia (cualquiera de los ADMIN; queda quién y cuándo). */
+ async revisarDiferenciaCaja(tenantId:string,userId:string,cajaId:string){
+  return this.prisma.$transaction(async tx=>{
+   await lockTenant(tx,tenantId);
+   await authorizedActor(tx,tenantId,userId,['ADMIN']);
+   const [c]=await query(tx,'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 FOR UPDATE',cajaId,tenantId);if(!c)throw new NotFoundException('Caja no encontrada');
+   if(c.estado!=='CERRADA'||c.diferencia===null||Number(c.diferencia)===0)throw new ConflictException('La caja no tiene una diferencia de cierre que revisar');
+   if(c.diferencia_revisada_at)throw new ConflictException('La diferencia ya fue revisada');
+   const [r]=await query(tx,'UPDATE cajas SET diferencia_revisada_por=$3,diferencia_revisada_at=now() WHERE id=$1 AND tenant_id=$2 AND diferencia_revisada_at IS NULL RETURNING *',c.id,tenantId,userId);
+   await audit(tx,tenantId,userId,'CAJA_REVISAR_DIFERENCIA',c.id,{diferencia:Number(c.diferencia),cajeroId:c.usuario_id});
+   return r;
   });
  }
  // Solo ADMIN: consulta de cierres de todos los cajeros de la empresa.
@@ -229,35 +295,62 @@ export class OperacionesService {
    if(filtros.estado){if(!['ABIERTA','CERRADA'].includes(filtros.estado))throw new BadRequestException('Estado de caja inválido');args.push(filtros.estado);where.push(`c.estado=$${args.length}::"EstadoCaja"`);}
    if(filtros.usuarioId){args.push(filtros.usuarioId);where.push(`c.usuario_id=$${args.length}`);}
    for(const [campo,operador] of [['desde','>='],['hasta','<']] as const){const valor=filtros[campo];if(!valor)continue;const fecha=new Date(valor);if(Number.isNaN(fecha.getTime()))throw new BadRequestException('Fecha de consulta inválida');args.push(fecha.toISOString());where.push(`c.fecha_apertura ${operador} $${args.length}::timestamptz`);}
-   return query(tx,`SELECT c.id,c.codigo,c.usuario_id,u.nombre AS usuario_nombre,c.estado,c.fecha_apertura,c.fecha_cierre,c.monto_apertura,c.monto_cierre_fisico,c.monto_esperado,c.diferencia,c.notas,COALESCE((SELECT SUM(m.monto) FROM movimientos_caja m WHERE m.caja_id=c.id AND m.metodo='EFECTIVO'),0) AS efectivo_neto FROM cajas c LEFT JOIN usuarios u ON u.id=c.usuario_id WHERE ${where.join(' AND ')} ORDER BY c.fecha_apertura DESC,c.id DESC LIMIT 100`,...args);
+   return query(tx,`SELECT c.id,c.codigo,c.usuario_id,u.nombre AS usuario_nombre,c.estado,c.fecha_apertura,c.fecha_cierre,c.monto_apertura,c.monto_cierre_fisico,c.monto_esperado,c.diferencia,c.notas,c.monto_trasladado,c.caja_anterior_id,c.diferencia_revisada_at,(SELECT r.nombre FROM usuarios r WHERE r.id=c.diferencia_revisada_por) AS diferencia_revisada_por_nombre,(SELECT COUNT(*)::int FROM conteos_caja k WHERE k.caja_id=c.id) AS conteos,(${CONDICION_AVISO_DIFERENCIA}) AS requiere_revision,COALESCE((SELECT SUM(m.monto) FROM movimientos_caja m WHERE m.caja_id=c.id AND m.metodo='EFECTIVO'),0) AS efectivo_neto FROM cajas c LEFT JOIN usuarios u ON u.id=c.usuario_id WHERE ${where.join(' AND ')} ORDER BY c.fecha_apertura DESC,c.id DESC LIMIT 100`,...args);
   });
  }
  async abrir(tenantId:string,userId:string,dto:AbrirCajaDto){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
-   await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','VENDEDOR']);
+   const user=await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','VENDEDOR']);
    const monto=decimal(dto.monto,'Apertura');
    const [prev]=await query(tx,'SELECT * FROM cajas WHERE id IN ($1,$4) AND tenant_id=$2 AND usuario_id=$3',idSolicitud(tenantId,dto.solicitudId),tenantId,userId,dto.solicitudId);
    if(prev){if(Number(prev.monto_apertura)!==monto)throw new ConflictException('Solicitud utilizada para otra apertura');return prev;}
    const [open]=await query(tx,'SELECT id FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado=\'ABIERTA\'',tenantId,userId);if(open)throw new ConflictException('Ya tiene una caja abierta');
-   const [c]=await query(tx,'INSERT INTO cajas (id,tenant_id,codigo,usuario_id,monto_apertura) VALUES ($1,$2,$3,$4,$5) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,`CAJA-${dto.solicitudId}`,userId,monto);await audit(tx,tenantId,userId,'CAJA_ABRIR',c.id,{monto});return c;
+   // Etapa 3: si la tienda no permite abrir sin autorización, quien no es ADMIN necesita la aprobación de un ADMIN.
+   const cfg=await configuracionCaja(tx,tenantId);
+   let autorizacionId:string|null=null;
+   if(user.rol!=='ADMIN'&&!cfg.aperturaAutonoma){
+    const aut=await exigirAutorizacionCaja(tx,{tenantId,usuarioId:userId,tipo:'APERTURA_CAJA',entidadId:dto.solicitudId,datos:{monto},resumen:{monto}});
+    if(!aut.aprobada)return {estado:'PENDIENTE_AUTORIZACION',solicitudAutorizacionId:aut.solicitudId,monto};
+    autorizacionId=aut.solicitudId;
+   }
+   // Saldo que la misma persona dejó al cerrar su caja anterior: la apertura queda vinculada a esa caja.
+   const anterior=await saldoTrasladable(tx,tenantId,userId);
+   const [c]=await query(tx,'INSERT INTO cajas (id,tenant_id,codigo,usuario_id,monto_apertura,caja_anterior_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,`CAJA-${dto.solicitudId}`,userId,monto,anterior?.cajaId??null);
+   await audit(tx,tenantId,userId,'CAJA_ABRIR',c.id,{monto,autorizacionId,cajaAnteriorId:anterior?.cajaId??null,saldoTrasladado:anterior?.monto??null});
+   return {...c,saldo_trasladado:anterior?.monto??null};
   });
  }
  async cerrar(tenantId:string,userId:string,cajaId:string,dto:CerrarCajaDto){
   return this.prisma.$transaction(async tx=>{
    await lockTenant(tx,tenantId);
-   await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','VENDEDOR']);
+   const user=await authorizedActor(tx,tenantId,userId,['ADMIN','CAJERO','VENDEDOR']);
    const monto=decimal(dto.monto,'Efectivo contado');
    const notas=dto.notas?.trim()||null;
+   const trasladado=dto.montoTrasladado===undefined||dto.montoTrasladado===null?null:decimal(dto.montoTrasladado,'Saldo a trasladar');
+   if(trasladado!==null&&trasladado>monto)throw new BadRequestException('El saldo a trasladar no puede superar el efectivo contado');
    const [c]=await query(tx,'SELECT * FROM cajas WHERE id=$1 AND tenant_id=$2 AND usuario_id=$3 FOR UPDATE',cajaId,tenantId,userId);if(!c)throw new NotFoundException('Caja no encontrada');
    // Repetir el mismo cierre responde igual; un segundo cierre distinto se rechaza sin tocar el resultado confirmado.
-   if(c.estado==='CERRADA'){if(Number(c.monto_cierre_fisico)!==monto||(c.notas??null)!==notas)throw new ConflictException('La caja ya está cerrada');return c;}
+   if(c.estado==='CERRADA'){if(Number(c.monto_cierre_fisico)!==monto||(c.notas??null)!==notas||(c.monto_trasladado===null?null:Number(c.monto_trasladado))!==trasladado)throw new ConflictException('La caja ya está cerrada');return c;}
    const movements=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1',c.id);
    const esperado=this.resumenCaja(c,movements).efectivoEsperado;
+   // Cierre ciego: el cierre usa el último conteo. Si el monto enviado no coincide con él (o no hay conteo), cuenta como un
+   // conteo nuevo, que queda registrado igual que los demás.
+   let conteo=await ultimoConteo(tx,c.id);
+   if(!conteo||Number(conteo.fila.monto)!==monto||Number(conteo.fila.esperado)!==esperado)conteo=await registrarConteo(tx,{tenantId,cajaId:c.id,usuarioId:userId,monto,esperado});
    const diferencia=money(monto-esperado);
    if(diferencia!==0&&!notas)throw new BadRequestException('Explique la diferencia de caja antes de cerrar');
-   const [closed]=await query(tx,'UPDATE cajas SET monto_cierre_fisico=$1,monto_esperado=$2,diferencia=$3,estado=\'CERRADA\',fecha_cierre=NOW(),notas=$4 WHERE id=$5 RETURNING *',monto,esperado,diferencia,notas,c.id);
-   await audit(tx,tenantId,userId,'CAJA_CERRAR',c.id,{monto,esperado,diferencia,notas});
+   // Etapa 3: si la tienda no permite cerrar sin autorización, quien no es ADMIN necesita la aprobación de este conteo exacto.
+   const cfg=await configuracionCaja(tx,tenantId);
+   let autorizacionId:string|null=null;
+   if(user.rol!=='ADMIN'&&!cfg.cierreAutonomo){
+    const aut=await exigirAutorizacionCaja(tx,{tenantId,usuarioId:userId,tipo:'CIERRE_CAJA',entidadId:c.id,datos:{conteoId:conteo.fila.id,monto,notas,trasladado},
+      resumen:{cajaId:c.id,conteoId:conteo.fila.id,monto,diferencia,motivo:notas,montoTrasladado:trasladado}});
+    if(!aut.aprobada)return {estado:'PENDIENTE_AUTORIZACION',solicitudAutorizacionId:aut.solicitudId,conteo:vistaConteo(conteo.fila,conteo.numero)};
+    autorizacionId=aut.solicitudId;
+   }
+   const [closed]=await query(tx,'UPDATE cajas SET monto_cierre_fisico=$1,monto_esperado=$2,diferencia=$3,estado=\'CERRADA\',fecha_cierre=NOW(),notas=$4,monto_trasladado=$5 WHERE id=$6 RETURNING *',monto,esperado,diferencia,notas,trasladado,c.id);
+   await audit(tx,tenantId,userId,'CAJA_CERRAR',c.id,{monto,esperado,diferencia,notas,montoTrasladado:trasladado,conteoId:conteo.fila.id,conteos:conteo.numero,autorizacionId,aviso:diferencia!==0&&Math.abs(diferencia)>=cfg.umbralAvisoDiferencia});
    return {...closed,resumen:this.resumenCaja(closed,movements)};
   });
  }

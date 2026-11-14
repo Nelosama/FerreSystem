@@ -13,6 +13,8 @@ const PASSWORD = process.env.E2E_PASSWORD!;
 const PSQL = `${process.env.PG_BIN ?? '/usr/lib/postgresql/16/bin'}/psql`;
 const DB = `postgresql://postgres@127.0.0.1:${process.env.E2E_PG_PORT ?? '55433'}/postgres`;
 const sql = (consulta: string) => execFileSync(PSQL, ['-X', '-At', '-F', '|', DB, '-c', consulta], { encoding: 'utf8' }).trim();
+// Cierre ciego (etapa 3): el cajero no recibe el efectivo esperado de su caja abierta. Las pruebas lo leen de PostgreSQL.
+const esperadoDeCaja = (id: string) => Number(sql(`SELECT (c.monto_apertura + COALESCE((SELECT SUM(m.monto) FROM movimientos_caja m WHERE m.caja_id=c.id AND m.metodo='EFECTIVO'),0))::float FROM cajas c WHERE c.id='${id}'`));
 const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 const RUN = randomUUID().slice(0, 8).toUpperCase();
 const ADMIN = 'admin.a@e2e.invalid';
@@ -183,7 +185,9 @@ test('6. ataques HTTP: sin sesión, asignación masiva, otra empresa y roles ins
 
 test('7. arqueo en pantalla: el faltante exige explicación; con nota la caja cierra y concilia contra PostgreSQL', async ({ page, request }) => {
   const cajas = await (await request.get(`${API}/operaciones/caja`, { headers: auth(cajero.token) })).json() as any[];
-  efectivoEsperado = Number(cajas.find((c) => c.id === cajaId).efectivoEsperado);
+  // Cierre ciego: el cajero no recibe el esperado; el ADMIN sí.
+  expect(cajas.find((c) => c.id === cajaId).efectivoEsperado).toBeUndefined();
+  efectivoEsperado = Number((await (await request.get(`${API}/operaciones/caja/${cajaId}`, { headers: auth(admin.token) })).json()).resumen.efectivoEsperado);
   // 300 + 207 + 100.5 + 115 (venta de la prueba 6) = 722.50
   expect(efectivoEsperado).toBe(722.5);
   expect(sql(`SELECT (monto_apertura + COALESCE((SELECT SUM(monto) FROM movimientos_caja WHERE caja_id=c.id AND metodo='EFECTIVO'),0))::float FROM cajas c WHERE id='${cajaId}'`)).toBe('722.5');
@@ -195,7 +199,9 @@ test('7. arqueo en pantalla: el faltante exige explicación; con nota la caja ci
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
   await page.goto('/arqueo-caja');
   await page.getByLabel('Efectivo contado').fill('720');
-  // Faltante de L 2.50: la pantalla marca la explicación como obligatoria (no abre la confirmación) y el servidor también la exige.
+  // Cierre ciego: el faltante se conoce al registrar el conteo. Faltante de L 2.50: la pantalla marca la explicación como
+  // obligatoria (no abre la confirmación) y el servidor también la exige.
+  await page.getByRole('button', { name: 'Registrar conteo' }).click();
   await expect(page.getByText(/Faltante/).first()).toBeVisible();
   await page.getByRole('button', { name: 'Cerrar caja' }).click();
   await expect(page.locator('.ferre-alerta')).toHaveCount(0);
