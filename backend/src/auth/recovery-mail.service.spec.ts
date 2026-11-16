@@ -102,3 +102,35 @@ describe('validarConfiguracionCorreo (arranque)', () => {
     expect(validarConfiguracionCorreo(entorno({ AUTH_MAIL_RESEND_API_KEY: 're_sintetica' })).join(' ')).toMatch(/AUTH_MAIL_RESEND_API_KEY ya no se usa/);
   });
 });
+
+// T-02: la biblioteca real de correo, sin red (`streamTransport` compone el mensaje en memoria; no abre conexiones).
+describe('RecoveryMailService con nodemailer real (sin red)', () => {
+  const enviarCon = async (destino: string) => {
+    const { createTransport } = await import('nodemailer');
+    const resultados: any[] = [];
+    const fabrica = () => {
+      const real = createTransport({ streamTransport: true, buffer: true, newline: 'unix' } as any);
+      return { sendMail: async (mensaje: any) => { const r = await real.sendMail(mensaje); resultados.push(r); return r; }, close: () => real.close() };
+    };
+    const valores = entorno();
+    const servicio = new RecoveryMailService({ get: (clave: string) => (valores as any)[clave] } as any, fabrica as any);
+    await servicio.sendTemporaryPassword(destino, 'AbCd-EfGh-JkMn-PqRs');
+    return resultados[0];
+  };
+
+  it('compone el mensaje con un único destinatario: el titular', async () => {
+    const r = await enviarCon('admin@negocio.test');
+    expect(r.envelope).toEqual({ from: 'seguridad.jowa@example.test', to: ['admin@negocio.test'] });
+    const crudo = r.message.toString('utf8');
+    expect(crudo).toMatch(/^To: admin@negocio\.test$/m);
+    expect(crudo).toContain('AbCd-EfGh-JkMn-PqRs');
+  });
+
+  it('un destinatario con comentarios o grupos anidados nunca añade otro buzón (avisos GHSA-8c8m, GHSA-m943 y GHSA-85x2)', async () => {
+    for (const destino of ['titular@negocio.test (a (b) otro@ajeno.test)', '"x;" <titular@negocio.test>', 'grupo: "a;b" <titular@negocio.test>;']) {
+      const r = await enviarCon(destino);
+      expect(r.envelope.to.every((d: string) => d.endsWith('@negocio.test'))).toBe(true);
+      expect(r.envelope.to).not.toContain('otro@ajeno.test');
+    }
+  });
+});
