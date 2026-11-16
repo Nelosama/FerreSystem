@@ -48,7 +48,7 @@ Prioridad: P0 impide operar o pierde dinero o datos; P1 riesgo alto para la prim
 | A-02 | P2 | Altas sin `solicitudId` (clientes, cotizaciones, duplicar cotización): `CreateClienteDto` y `CreateCotizacionDto` no lo tienen | Un reintento tras fallo de red crea un cliente o una cotización duplicados. No afecta dinero ni existencias | Sí. No se hizo aquí: cambia el contrato de tres pantallas y de la API | Repetir la misma solicitud devuelve el mismo registro; prueba de integración y E2E |
 | A-03 | P2 | T-04: cotización con precio unitario libre. La conversión a venta lo rechaza (409) | Un cliente puede recibir una cotización que no se podrá vender | Sí, tras decidir la regla | Decisión del dueño: límite, autorización o permitirlo |
 | A-04 | P2 | C-01: `compra()` acepta cualquier ISV entre 0 y el subtotal | Crédito fiscal mal registrado si compras alimenta libros | Sí, tras decidir la tasa | Decisión del contador; hasta entonces compras es solo registro de costo |
-| A-05 | P3 | RTN del cliente sin formato (`create-cliente.dto.ts` solo limita el largo) | Dato fiscal sin validar | Sí: regla decidida por el dueño el 2026-11-12 (14 dígitos si se pide). Propuesta en §5 | Ver §5 |
+| A-05 | P3 | RTN del cliente sin formato (`create-cliente.dto.ts` solo limitaba el largo) | Dato fiscal sin validar | **Implementado en #250** (etapa 4, borrador): regla común en servidor y pantalla para clientes, ventas y cotizaciones | Auditoría de Codex y merge de #250; decisiones abiertas en su descripción (RTN del emisor, RTN heredados) |
 | A-06 | P3 | Observaciones de #248 sin cambiar: recuento por `POST conteos` deja la solicitud de cierre PENDIENTE (aprobarla da 409); la caja sigue vendiendo mientras espera autorización de cierre; «Efectivo insuficiente» da una cota del esperado; `GET caja/cierres` lista 100 | Operativo, sin pérdida de dinero | Sí, si el dueño lo pide | Decisión del dueño por cada una |
 | A-07 | P2 | Contingencia PWA: apagada por defecto (`contingencia.service.ts:100`). Sin separación física por empresa ni validación en equipos | Sin internet no se vende | Parcial | NO-GO propio de la contingencia; la primera salida es solo en línea (§3 del plan) |
 | A-08 | P3 | SDK de OpenAI sin uso; inerte sin `OPENAI_API_KEY` | Dependencia innecesaria | Sí | Decisión del dueño: retirar o mantener |
@@ -86,7 +86,9 @@ Comprobado sin defecto en esta ronda (pruebas ejecutadas, no lectura de informes
 | Contingencia PWA | Apagada; pruebas simuladas | NO-GO propio (A-07) |
 | Infraestructura | Solo lo que demuestra el repositorio | B-01, B-02, B-06, B-07, B-09 |
 
-## 5. Propuesta separada: etapa 4, RTN (no implementada)
+## 5. Etapa 4, RTN (implementada en #250, en revisión)
+
+> Actualización del 2026-11-16: implementada en #250 con la regla de abajo, sin migración de datos heredados. RTN del emisor, proveedores y contingencia quedaron fuera. Lo que sigue es la propuesta original.
 
 Es un pendiente válido con regla decidida por el dueño el 2026-11-12, pero no consta que sea requisito de la primera salida (el primer cliente opera sin CAI y el RTN es opcional), #245 no tiene alcance publicado y Notion la asigna a Codex. No se empezó.
 
@@ -104,6 +106,8 @@ Los resultados por SHA y los checks de GitHub constan en cada PR. Ninguna prueba
 - **Fallo de entorno propio, no del producto:** al cambiar de rama el cliente Prisma quedó generado con el esquema de #248 y dos suites de aislamiento fallaron al preparar datos (`cajas.monto_trasladado does not exist`). Regenerado el cliente, pasaron.
 
 ## 7. Siguiente paso
+
+> Actualización del 2026-11-16: #248 recibió y corrigió seis observaciones de Codex (head `b17b4ca`, CI verde) y #250 (etapa 4) está en revisión. El dictamen sigue siendo NO-GO por los bloqueos de §3.
 
 1. Dueño: confirmar los tres supuestos de #248 y las decisiones 0.1, 0.5 y 0.7 del plan.
 2. Codex: auditar #248 (`d49bf2b`) y el PR de esta rama.
