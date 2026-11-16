@@ -1,5 +1,21 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Evaluación de preparación para producción — 2026-11-16 (rama `claude/jowa-production-readiness-dq4no2`, base `main` `5feae04`)
+
+- **Estado verificado:** `main` `5feae04` con ambos workflows en success. Único PR abierto al iniciar: #248 (borrador, head `efd2aaa`, checks verdes, sin hilos de revisión). `main` sin protección de rama (`protected: false`). Producción conocida: `46f7db7` (consulta del 2026-10-30, no reconsultada: sin acceso a Render, Vercel ni Supabase en esta sesión); la separan de `main` 142 commits y 2 migraciones.
+- **Dictamen: NO-GO.** Sin defectos P0 de código; faltan Render (arranque y salud), respaldo y restauración reales, preproducción con ensayo de migraciones, equipos físicos, aceptación del cliente y decisiones del dueño. Detalle, evidencia, prioridad y criterio de aceptación de cada punto en [EVALUACION_PRODUCCION_20261116.md](EVALUACION_PRODUCCION_20261116.md). Esa tabla es la lista vigente; no se repite aquí.
+- **#248 (rama `claude/affectionate-cori-pb4pv2`):** revisión independiente con tres defectos corregidos en `d49bf2b` (aprobaciones de apertura reutilizables, solicitud ajena con el mismo identificador, solicitud de cierre pendiente con la caja cerrada). Su detalle está en la sección de la etapa 3 de esa rama. Los tres supuestos del dueño siguen pendientes y sin cambios.
+- **Corregido en esta rama:**
+  - T-06: mensajes de validación por defecto en español (`backend/src/common/pipes/mensajes-validacion.ts`, usado por `configurarPipesGlobales`). No cambia qué se valida ni la forma de la respuesta; los mensajes propios de cada DTO no se tocan.
+  - T-07: `GET /operaciones/productos/:id/historial` responde 404 para un producto ajeno o inexistente (`operaciones.service.ts`).
+  - T-02: `nodemailer` 10.0.16 → 10.3.1; `npm audit --omit=dev` queda en 0 avisos. Prueba nueva con la biblioteca real y sin red (`recovery-mail.service.spec.ts`). El envío real sigue sin probar.
+  - Rama añadida al bloqueo de vistas previas de Vercel antes del primer push (`frontend/scripts/vercel-ignore.sh`, prueba 49/49).
+- **No iniciado:** etapa 4 (RTN). Regla decidida por el dueño el 2026-11-12, pero sin alcance publicado en #245 ni confirmación de que sea requisito de la primera salida; Notion la asigna a Codex. Propuesta en el §5 de la evaluación.
+- **NEXUS:** sin cambios de esquema ni migraciones en esta rama.
+- **Al integrar con #248:** este documento tendrá conflicto en la cabecera (ambas ramas añaden una sección); se resuelve conservando las dos.
+
+**Bitácora 2026-11-16:** lectura de `AGENTS.md`, contexto, plan de salida, matriz fiscal, auditoría de infraestructura, #245 y Notion; consulta de `main`, ramas, PR, checks y protección en GitHub; revisión y corrección de #248; correcciones T-02, T-06 y T-07; evaluación. Resultados de pruebas por SHA en los PR. Sin merge, despliegue, paneles ni bases reales.
+
 ## Etapa 2 de las decisiones del 2026-11-12: devoluciones y reembolsos — 2026-11-13 (rama `claude/affectionate-cori-pb4pv2`, base `main` `1eb7cb4`)
 
 - **Estado de Git al iniciar:** `main` `1eb7cb4` (merge de #246, etapa 1). La rama asignada se reinició desde ese `main` tras el merge. Sin otros PR abiertos ni ramas activas. Alcance y criterios en [#245](https://github.com/Nelosama/FerreSystem/issues/245).
