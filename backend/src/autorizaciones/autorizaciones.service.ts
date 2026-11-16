@@ -159,7 +159,7 @@ export class AutorizacionesService {
       if (!caja) throw new NotFoundException('La caja de esta solicitud ya no existe');
       if (decision === 'APROBADA') {
         if (caja.estado !== 'ABIERTA') throw new ConflictException('La caja ya está cerrada');
-        const [ultimo] = await query(tx, 'SELECT id FROM conteos_caja WHERE caja_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1', caja.id);
+        const [ultimo] = await query(tx, 'SELECT id FROM conteos_caja WHERE tenant_id = $1 AND caja_id = $2 ORDER BY created_at DESC, id DESC LIMIT 1', tenantId, caja.id);
         const pedido = (previa.resumen as any)?.conteoId;
         if (!ultimo || ultimo.id !== pedido) throw new ConflictException('El cajero volvió a contar después de la solicitud. Debe pedir una autorización nueva con el conteo actual');
       }

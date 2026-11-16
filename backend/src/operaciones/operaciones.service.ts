@@ -219,7 +219,7 @@ export class OperacionesService {
   */
  private async vistaCiega(tx:Tx,c:any,rol:string){
   if(rol==='ADMIN'||c.estado!=='ABIERTA')return {};
-  const conteo=await ultimoConteo(tx,c.id);
+  const conteo=await ultimoConteo(tx,c.tenant_id,c.id);
   return {resumen:{fondoInicial:Number(c.monto_apertura),ciego:true},efectivoEsperado:undefined,totales:undefined,ultimoConteo:conteo?vistaConteo(conteo.fila,conteo.numero):null};
  }
  async cajaDetalle(tenantId:string,userId:string,cajaId:string){
@@ -229,7 +229,7 @@ export class OperacionesService {
    const [c]=await query(tx,'SELECT c.*,u.nombre AS usuario_nombre FROM cajas c LEFT JOIN usuarios u ON u.id=c.usuario_id WHERE c.id=$1 AND c.tenant_id=$2',cajaId,tenantId);
    if(!c||(user.rol!=='ADMIN'&&c.usuario_id!==userId))throw new NotFoundException('Caja no encontrada');
    const movimientos=await query(tx,'SELECT * FROM movimientos_caja WHERE caja_id=$1 ORDER BY created_at,id',c.id);
-   const conteos=user.rol==='ADMIN'||c.estado==='CERRADA'?await query(tx,'SELECT k.id,k.monto,k.esperado,k.diferencia,k.created_at,u.nombre AS usuario_nombre FROM conteos_caja k LEFT JOIN usuarios u ON u.id=k.usuario_id WHERE k.caja_id=$1 ORDER BY k.created_at,k.id',c.id):undefined;
+   const conteos=user.rol==='ADMIN'||c.estado==='CERRADA'?await query(tx,'SELECT k.id,k.monto,k.esperado,k.diferencia,k.created_at,u.nombre AS usuario_nombre FROM conteos_caja k LEFT JOIN usuarios u ON u.id=k.usuario_id AND u.tenant_id=k.tenant_id WHERE k.tenant_id=$1 AND k.caja_id=$2 ORDER BY k.created_at,k.id',tenantId,c.id):undefined;
    return {...c,movimientos,resumen:this.resumenCaja(c,movimientos),...(conteos?{conteos}:{}),...(await this.vistaCiega(tx,c,user.rol))};
   });
  }
@@ -295,7 +295,7 @@ export class OperacionesService {
    if(filtros.estado){if(!['ABIERTA','CERRADA'].includes(filtros.estado))throw new BadRequestException('Estado de caja inválido');args.push(filtros.estado);where.push(`c.estado=$${args.length}::"EstadoCaja"`);}
    if(filtros.usuarioId){args.push(filtros.usuarioId);where.push(`c.usuario_id=$${args.length}`);}
    for(const [campo,operador] of [['desde','>='],['hasta','<']] as const){const valor=filtros[campo];if(!valor)continue;const fecha=new Date(valor);if(Number.isNaN(fecha.getTime()))throw new BadRequestException('Fecha de consulta inválida');args.push(fecha.toISOString());where.push(`c.fecha_apertura ${operador} $${args.length}::timestamptz`);}
-   return query(tx,`SELECT c.id,c.codigo,c.usuario_id,u.nombre AS usuario_nombre,c.estado,c.fecha_apertura,c.fecha_cierre,c.monto_apertura,c.monto_cierre_fisico,c.monto_esperado,c.diferencia,c.notas,c.monto_trasladado,c.caja_anterior_id,c.diferencia_revisada_at,(SELECT r.nombre FROM usuarios r WHERE r.id=c.diferencia_revisada_por) AS diferencia_revisada_por_nombre,(SELECT COUNT(*)::int FROM conteos_caja k WHERE k.caja_id=c.id) AS conteos,(${CONDICION_AVISO_DIFERENCIA}) AS requiere_revision,COALESCE((SELECT SUM(m.monto) FROM movimientos_caja m WHERE m.caja_id=c.id AND m.metodo='EFECTIVO'),0) AS efectivo_neto FROM cajas c LEFT JOIN usuarios u ON u.id=c.usuario_id WHERE ${where.join(' AND ')} ORDER BY c.fecha_apertura DESC,c.id DESC LIMIT 100`,...args);
+   return query(tx,`SELECT c.id,c.codigo,c.usuario_id,u.nombre AS usuario_nombre,c.estado,c.fecha_apertura,c.fecha_cierre,c.monto_apertura,c.monto_cierre_fisico,c.monto_esperado,c.diferencia,c.notas,c.monto_trasladado,c.caja_anterior_id,c.diferencia_revisada_at,(SELECT r.nombre FROM usuarios r WHERE r.id=c.diferencia_revisada_por) AS diferencia_revisada_por_nombre,(SELECT COUNT(*)::int FROM conteos_caja k WHERE k.tenant_id=c.tenant_id AND k.caja_id=c.id) AS conteos,(${CONDICION_AVISO_DIFERENCIA}) AS requiere_revision,COALESCE((SELECT SUM(m.monto) FROM movimientos_caja m WHERE m.caja_id=c.id AND m.metodo='EFECTIVO'),0) AS efectivo_neto FROM cajas c LEFT JOIN usuarios u ON u.id=c.usuario_id WHERE ${where.join(' AND ')} ORDER BY c.fecha_apertura DESC,c.id DESC LIMIT 100`,...args);
   });
  }
  async abrir(tenantId:string,userId:string,dto:AbrirCajaDto){
@@ -338,7 +338,7 @@ export class OperacionesService {
    const esperado=this.resumenCaja(c,movements).efectivoEsperado;
    // Cierre ciego: el cierre usa el último conteo. Si el monto enviado no coincide con él (o no hay conteo), cuenta como un
    // conteo nuevo, que queda registrado igual que los demás.
-   let conteo=await ultimoConteo(tx,c.id);
+   let conteo=await ultimoConteo(tx,tenantId,c.id);
    if(!conteo||Number(conteo.fila.monto)!==monto||Number(conteo.fila.esperado)!==esperado)conteo=await registrarConteo(tx,{tenantId,cajaId:c.id,usuarioId:userId,monto,esperado});
    const diferencia=money(monto-esperado);
    if(diferencia!==0&&!notas)throw new BadRequestException('Explique la diferencia de caja antes de cerrar');

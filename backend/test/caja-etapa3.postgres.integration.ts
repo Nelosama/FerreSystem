@@ -391,8 +391,13 @@ describe('Caja — etapa 3 (cierre ciego, autonomía, traslado y avisos) / Postg
 
     // Conteo de la empresa A con la caja de B: lo rechaza la FK compuesta (tenant_id, caja_id) → cajas(tenant_id, id).
     await expect(insertarConteo(tenantA, cajaB.id, cajero)).rejects.toThrow(/conteos_caja_caja_id_fkey/);
-    // Conteo de la empresa A con un usuario de B: lo rechaza el trigger de misma empresa.
+    // Conteo de la empresa A con un usuario de B: lo rechaza el trigger de misma empresa (ver la nota de la migración: una FK
+    // compuesta a usuarios rompería la reversión con respaldo de #148, que elimina usuarios_tenant_id_id_key).
     await expect(insertarConteo(tenantA, cajaA.id, adminB)).rejects.toThrow(/no pertenece a la empresa/);
+    // Caja y usuario de B con el tenant de A, o la caja de A con el tenant de B: ninguna combinación cruzada pasa.
+    await expect(insertarConteo(tenantA, cajaB.id, adminB)).rejects.toThrow(rechazo);
+    await expect(insertarConteo(tenantB, cajaA.id, adminB)).rejects.toThrow(/conteos_caja_caja_id_fkey/);
+    await expect(insertarConteo(tenantB, cajaB.id, cajero)).rejects.toThrow(/no pertenece a la empresa/);
     // Mover un conteo existente a otra empresa o a otro usuario ajeno tampoco pasa.
     const [{ id: conteoId }] = await sql('SELECT id FROM conteos_caja WHERE caja_id=$1', cajaA.id);
     await expect(exec('UPDATE conteos_caja SET usuario_id=$2 WHERE id=$1', conteoId, adminB)).rejects.toThrow(rechazo);
@@ -401,8 +406,15 @@ describe('Caja — etapa 3 (cierre ciego, autonomía, traslado y avisos) / Postg
     await expect(exec('UPDATE cajas SET caja_anterior_id=$2 WHERE id=$1', cajaA.id, cajaB.id)).rejects.toThrow(/no pertenece a la empresa/);
     await expect(exec('UPDATE cajas SET diferencia_revisada_por=$2, diferencia_revisada_at=now() WHERE id=$1', cajaA.id, adminB)).rejects.toThrow(/no pertenece a la empresa/);
     await expect(exec('INSERT INTO configuracion_caja (tenant_id, actualizado_por) VALUES ($1,$2)', tenantA, adminB)).rejects.toThrow(/no pertenece a la empresa/);
-    // Control: con caja y usuario de la misma empresa sí se guarda.
+    // En el catálogo: la caja es una FK compuesta; el usuario, FK simple más el trigger de misma empresa (activo).
+    const defs = Object.fromEntries((await sql("SELECT conname, pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname IN ('conteos_caja_caja_id_fkey','conteos_caja_usuario_id_fkey')")).map((r: any) => [r.conname, r.def]));
+    expect(defs.conteos_caja_caja_id_fkey).toMatch(/FOREIGN KEY \(tenant_id, caja_id\) REFERENCES cajas\(tenant_id, id\)/);
+    expect(defs.conteos_caja_usuario_id_fkey).toMatch(/FOREIGN KEY \(usuario_id\) REFERENCES usuarios\(id\)/);
+    expect((await sql("SELECT tgenabled FROM pg_trigger WHERE tgrelid='conteos_caja'::regclass AND tgname='conteos_caja_usuario_misma_empresa'"))[0]?.tgenabled).toBe('O');
+    // Control: con caja y usuario de la misma empresa sí se guarda, también por SQL directo y para un ADMIN de la empresa.
     await insertarConteo(tenantA, cajaA.id, cajero);
+    await insertarConteo(tenantB, cajaB.id, adminB);
+    expect((await sql('SELECT COUNT(*)::int AS n FROM conteos_caja WHERE tenant_id=$1 AND caja_id=$2', tenantB, cajaB.id))[0].n).toBe(1);
     expect((await sql('SELECT COUNT(*)::int AS n FROM conteos_caja WHERE caja_id=$1', cajaA.id))[0].n).toBe(2);
     expect((await sql('SELECT COUNT(*)::int AS n FROM conteos_caja c JOIN cajas k ON k.id=c.caja_id WHERE c.tenant_id <> k.tenant_id'))[0].n).toBe(0);
 
@@ -415,6 +427,11 @@ describe('Caja — etapa 3 (cierre ciego, autonomía, traslado y avisos) / Postg
     // Y la empresa A ve sus conteos en el detalle, ninguno de B.
     const detalleA = await ops.cajaDetalle(tenantA, admin, cajaA.id) as any;
     expect(detalleA.conteos).toHaveLength(2);
+    // El conteo que se guardó para la caja de B no aparece en ninguna lectura de A, ni el de A en las de B.
+    expect((await ops.cajaDetalle(tenantB, adminB, cajaB.id) as any).conteos).toHaveLength(1);
+    expect((await ops.cierresCaja(tenantA, admin, {}) as any[]).find((c) => c.id === cajaA.id)?.conteos).toBe(2);
+    // Por el servicio, el conteo de la caja propia sigue funcionando con el tenant del token.
+    expect(await ops.conteoCaja(tenantB, adminB, cajaB.id, { monto: 50 })).toMatchObject({ numero: 2, resultado: 'CUADRA' });
   });
 
   it('saldo trasladable: como máximo lo contado; la siguiente apertura de la misma persona queda vinculada', async () => {

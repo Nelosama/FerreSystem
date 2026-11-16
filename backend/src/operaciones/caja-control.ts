@@ -34,15 +34,16 @@ export async function registrarConteo(tx: Tx, p: { tenantId: string; cajaId: str
   const diferencia = money(p.monto - p.esperado);
   const [fila] = await query(tx, 'INSERT INTO conteos_caja (id, tenant_id, caja_id, usuario_id, monto, esperado, diferencia) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
     id(), p.tenantId, p.cajaId, p.usuarioId, p.monto, p.esperado, diferencia);
-  const [{ n }] = await query(tx, 'SELECT COUNT(*)::int AS n FROM conteos_caja WHERE caja_id=$1', p.cajaId);
+  const [{ n }] = await query(tx, 'SELECT COUNT(*)::int AS n FROM conteos_caja WHERE tenant_id=$1 AND caja_id=$2', p.tenantId, p.cajaId);
   await audit(tx, p.tenantId, p.usuarioId, 'CAJA_CONTEO', p.cajaId, { conteoId: fila.id, numero: n, monto: p.monto, diferencia });
   return { fila, numero: n as number };
 }
 
-export async function ultimoConteo(tx: Tx, cajaId: string) {
-  const [fila] = await query(tx, 'SELECT * FROM conteos_caja WHERE caja_id=$1 ORDER BY created_at DESC, id DESC LIMIT 1', cajaId);
+/** Último conteo de una caja de la empresa (el filtro por empresa se repite aunque la FK compuesta ya lo garantiza). */
+export async function ultimoConteo(tx: Tx, tenantId: string, cajaId: string) {
+  const [fila] = await query(tx, 'SELECT * FROM conteos_caja WHERE tenant_id=$1 AND caja_id=$2 ORDER BY created_at DESC, id DESC LIMIT 1', tenantId, cajaId);
   if (!fila) return null;
-  const [{ n }] = await query(tx, 'SELECT COUNT(*)::int AS n FROM conteos_caja WHERE caja_id=$1', cajaId);
+  const [{ n }] = await query(tx, 'SELECT COUNT(*)::int AS n FROM conteos_caja WHERE tenant_id=$1 AND caja_id=$2', tenantId, cajaId);
   return { fila, numero: n as number };
 }
 

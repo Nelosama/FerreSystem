@@ -3,6 +3,8 @@
 -- Con el backend anterior no rige configuracion_caja: una tienda que exigía autorización vuelve a abrir y cerrar sin ella, el cierre
 -- deja de ser ciego y las solicitudes APERTURA_CAJA/CIERRE_CAJA pendientes no se pueden decidir. Avisar a los ADMIN antes de revertir.
 -- Borrarlas elimina los conteos del cierre ciego, la configuración de caja, los traslados y las revisiones. Exportar antes.
+-- conteos_caja.usuario_id usa una FK simple y un trigger, no una FK compuesta a usuarios(tenant_id, id): la reversión con respaldo de
+-- #148 (prisma/propuestas/entregas-148/03_rollback_con_respaldo.sql, probada sobre el esquema completo) elimina usuarios_tenant_id_id_key.
 -- Los valores APERTURA_CAJA/CIERRE_CAJA del enum no se pueden quitar sin recrear el tipo: dejarlos es inofensivo.
 -- DROP TRIGGER cajas_revisor_misma_empresa ON cajas; DROP TRIGGER cajas_anterior_misma_empresa ON cajas;
 -- DROP TABLE configuracion_caja;
