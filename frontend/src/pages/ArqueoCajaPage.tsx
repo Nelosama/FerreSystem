@@ -104,10 +104,12 @@ export const ArqueoCajaPage: React.FC = () => {
       localStorage.removeItem(pendingKey); setPending(null);
       return response.data;
     } catch (e: any) {
-      // Respuestas de negocio definitivas liberan la solicitud; un fallo de red la conserva para reintentar.
-      if ([400, 403, 404, 409, 422].includes(e.response?.status)) { localStorage.removeItem(pendingKey); setPending(null); }
+      // Respuestas de negocio definitivas liberan la solicitud y devuelven false; un fallo de red la conserva para reintentar y
+      // devuelve null (quien llama distingue así un rechazo de un error recuperable).
+      const definitiva = [400, 403, 404, 409, 422].includes(e.response?.status);
+      if (definitiva) { localStorage.removeItem(pendingKey); setPending(null); }
       setError(errorMessage(e));
-      return false;
+      return definitiva ? false : null;
     } finally { setBusy(false); running.current = false; }
   };
   // Con una operación pendiente se reenvía la misma, con su solicitud, para no duplicar el movimiento.
@@ -121,32 +123,44 @@ export const ArqueoCajaPage: React.FC = () => {
     return true;
   };
   const liberarEspera = () => { localStorage.removeItem(waitingKey); setWaiting(null); };
+  /**
+   * Resultado de una apertura o un cierre, venga del envío, del reintento tras un fallo de red o de «Consultar de nuevo». Una
+   * respuesta «pendiente de autorización» guarda la espera con el mismo comando y no anuncia nada; solo una caja confirmada por
+   * el servidor cierra la espera, limpia el formulario y, en un cierre, muestra el comprobante (auditoría de #248).
+   */
+  const terminarCaja = async (command: Command, result: any) => {
+    const esCierre = command.path.endsWith('/cerrar');
+    if (esperarAutorizacion(result, command)) { setSuccess(t(esCierre ? 'cash_drawer.waiting_close' : 'cash_drawer.waiting_open')); return; }
+    liberarEspera();
+    if (esCierre) {
+      setCounted(''); setNotes(''); setCarry(''); setConteo(null); setDetalle(null);
+      await afterChange(t('cash_drawer.saved_close'));
+      setDetalle(await api.get(`/operaciones/caja/${result.id}`).then(r => r.data).catch(() => null));
+    } else { setFund(''); await afterChange(t('cash_drawer.saved_open')); }
+  };
   const consultarEspera = async () => {
     if (!waiting) return;
     const result = await send(waiting);
-    if (!result) { liberarEspera(); return; }
-    if (result.estado === 'PENDIENTE_AUTORIZACION') { setSuccess(t(waiting.path.endsWith('/abrir') ? 'cash_drawer.waiting_open' : 'cash_drawer.waiting_close')); return; }
-    const eraCierre = waiting.path.endsWith('/cerrar');
-    liberarEspera();
-    if (eraCierre) { setCounted(''); setNotes(''); setCarry(''); setConteo(null); await afterChange(t('cash_drawer.saved_close')); setDetalle(await api.get(`/operaciones/caja/${result.id}`).then(r => r.data).catch(() => null)); }
-    else { setFund(''); await afterChange(t('cash_drawer.saved_open')); }
+    // Solo un rechazo definitivo suelta la espera; un fallo de red la conserva (y deja la operación lista para reintentar).
+    if (result === false) { liberarEspera(); return; }
+    if (!result) return;
+    await terminarCaja(waiting, result);
   };
   const retryPending = async () => {
     if (!pending) return;
-    const result = await send(pending);
+    const command = pending;
+    const result = await send(command);
     if (!result) return;
-    if (pending.path.endsWith('/abrir')) { setFund(''); await afterChange(t('cash_drawer.saved_open')); }
-    else if (pending.path.endsWith('/movimientos')) { setMovement({ tipo: 'INGRESO_MANUAL', monto: '', concepto: '', referencia: '' }); await afterChange(t('cash_drawer.saved_movement')); }
-    else if (pending.path.endsWith('/cerrar')) { setCounted(''); setNotes(''); setDetalle(result); await afterChange(t('cash_drawer.saved_close')); }
+    if (command.path.endsWith('/abrir') || command.path.endsWith('/cerrar')) { await terminarCaja(command, result); return; }
+    if (command.path.endsWith('/movimientos')) { setMovement({ tipo: 'INGRESO_MANUAL', monto: '', concepto: '', referencia: '' }); await afterChange(t('cash_drawer.saved_movement')); }
   };
 
   const openDrawer = async (event: React.FormEvent) => {
     event.preventDefault();
-    const command: Command = { path: '/operaciones/caja/abrir', body: { monto: Number(fund), solicitudId: newRequestId() } };
-    const result = pending ? await send(pending) : await send(command);
+    const command: Command = pending?.path.endsWith('/abrir') ? pending : { path: '/operaciones/caja/abrir', body: { monto: Number(fund), solicitudId: newRequestId() } };
+    const result = await send(command);
     if (!result) return;
-    if (esperarAutorizacion(result, pending ?? command)) { setSuccess(t('cash_drawer.waiting_open')); return; }
-    setFund(''); await afterChange(t('cash_drawer.saved_open'));
+    await terminarCaja(command, result);
   };
   /** Cierre ciego: registra el conteo y muestra si cuadra o cuánto falta o sobra. Se puede repetir. */
   const registerCount = async () => {
@@ -172,13 +186,7 @@ export const ArqueoCajaPage: React.FC = () => {
     if (!(await alertas.confirmar({ texto: t('cash_drawer.confirm_close') }))) return;
     const command: Command = { path: `/operaciones/caja/${abierta.id}/cerrar`, body: { monto: Number(counted), notas: notes.trim() || undefined, ...(carry.trim() !== '' ? { montoTrasladado: Number(carry) } : {}) } };
     const closed = await send(command);
-    if (closed && esperarAutorizacion(closed, command)) { setSuccess(t('cash_drawer.waiting_close')); return; }
-    if (closed) {
-      setCounted(''); setNotes(''); setCarry(''); setConteo(null);
-      setDetalle(null);
-      await afterChange(t('cash_drawer.saved_close'));
-      setDetalle(await api.get(`/operaciones/caja/${closed.id}`).then(r => r.data).catch(() => null));
-    }
+    if (closed) await terminarCaja(command, closed);
   };
   const guardarConfig = async (event: React.FormEvent) => {
     event.preventDefault();
