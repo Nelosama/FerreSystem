@@ -67,7 +67,8 @@
       "claude/sharp-fermi-ryjhpl": false,
       "claude/sprint-seguimiento-20261030": false,
       "claude/focused-hawking-52oiqz": false,
-      "claude/sweet-ritchie-wrwsbo": false
+      "claude/sweet-ritchie-wrwsbo": false,
+      "claude/affectionate-cori-pb4pv2": false
     }
   },
   "ignoreCommand": "sh scripts/vercel-ignore.sh"
