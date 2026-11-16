@@ -58,16 +58,60 @@ export async function saldoTrasladable(tx: Tx, tenantId: string, usuarioId: stri
 type TipoCaja = 'APERTURA_CAJA' | 'CIERRE_CAJA';
 
 /**
+ * Deja sin efecto solicitudes de caja que ya no corresponden a ninguna operación: las PENDIENTE pasan a INVALIDADA con
+ * quién las invalidó; las APROBADA sin usar pasan a INVALIDADA conservando quién aprobó y cuándo (mismo criterio que la
+ * etapa 1). Quién invalidó y por qué queda siempre en `auditoria_operaciones` (AUTORIZACION_INVALIDADA).
+ * `condicion` es SQL fijo de este archivo sobre el alias `s` (nunca texto del usuario); `args` empieza en $4.
+ */
+async function invalidarSolicitudesCaja(tx: Tx, p: { tenantId: string; usuarioId: string; tipo: TipoCaja; motivo: string; condicion: string; args: unknown[] }) {
+  const filas = await query<{ id: string; entidad_id: string; estado: string }>(tx, `SELECT s.id, s.entidad_id, s.estado::text AS estado FROM solicitudes_autorizacion s
+    WHERE s.tenant_id=$1 AND s.tipo=$2::"TipoSolicitudAutorizacion" AND s.solicitante_id=$3 AND ${p.condicion}
+    ORDER BY s.solicitada_at, s.id FOR UPDATE OF s`, p.tenantId, p.tipo, p.usuarioId, ...p.args);
+  for (const f of filas) {
+    const eraAprobada = f.estado === 'APROBADA';
+    await query(tx, eraAprobada
+      ? `UPDATE solicitudes_autorizacion SET estado='INVALIDADA', motivo_decision=CASE WHEN motivo_decision IS NULL OR motivo_decision='' THEN $3 ELSE motivo_decision || ' | ' || $3 END
+          WHERE id=$1 AND tenant_id=$2 AND estado='APROBADA' RETURNING id`
+      : `UPDATE solicitudes_autorizacion SET estado='INVALIDADA', decisor_id=$4, decidida_at=now(), motivo_decision=$3
+          WHERE id=$1 AND tenant_id=$2 AND estado='PENDIENTE' RETURNING id`,
+      ...(eraAprobada ? [f.id, p.tenantId, p.motivo] : [f.id, p.tenantId, p.motivo, p.usuarioId]));
+    await audit(tx, p.tenantId, p.usuarioId, 'AUTORIZACION_INVALIDADA', f.id, { tipo: p.tipo, entidadId: f.entidad_id, motivo: p.motivo, eraAprobada });
+  }
+  return filas.length;
+}
+
+// Una aprobación de apertura «sin usar» es la que no llegó a abrir una caja (el código de la caja lleva su solicitud).
+const APERTURA_VIVA = `(s.estado='PENDIENTE' OR (s.estado='APROBADA' AND NOT EXISTS (
+  SELECT 1 FROM cajas c WHERE c.tenant_id=s.tenant_id AND c.codigo='CAJA-' || s.entidad_id)))`;
+
+/**
+ * Una aprobación de apertura sirve para una sola apertura. Al pedir otra apertura o al abrir la caja, las demás solicitudes
+ * de apertura de la misma persona que sigan vivas (pendientes o aprobadas sin usar) quedan INVALIDADAS: no se acumulan
+ * aprobaciones utilizables otro día sin que un ADMIN vuelva a decidir. Las aprobaciones que sí abrieron una caja no cambian.
+ */
+export const invalidarAperturasSobrantes = (tx: Tx, p: { tenantId: string; usuarioId: string; conservarId: string | null; motivo: string }) =>
+  invalidarSolicitudesCaja(tx, { tenantId: p.tenantId, usuarioId: p.usuarioId, tipo: 'APERTURA_CAJA', motivo: p.motivo,
+    condicion: `($4::text IS NULL OR s.id <> $4) AND ${APERTURA_VIVA}`, args: [p.conservarId] });
+
+/** Al cerrar la caja, ninguna solicitud de cierre de esa caja sigue esperando decisión (por ejemplo, si la tienda volvió al cierre autónomo). */
+export const invalidarCierresPendientes = (tx: Tx, p: { tenantId: string; usuarioId: string; cajaId: string }) =>
+  invalidarSolicitudesCaja(tx, { tenantId: p.tenantId, usuarioId: p.usuarioId, tipo: 'CIERRE_CAJA', motivo: 'La caja se cerró sin usar esta solicitud',
+    condicion: `s.entidad_id=$4 AND s.estado='PENDIENTE'`, args: [p.cajaId] });
+
+/**
  * Exige una autorización APROBADA de ADMIN para esta operación exacta (tipo + entidad + huella). Si no existe:
  * - con una RECHAZADA para la misma huella, 409 (no se vuelve a pedir sola);
  * - si no, crea (o conserva) la solicitud PENDIENTE a nombre del usuario e indica que hay que esperar.
  * Una pendiente de otra huella para la misma entidad se invalida (el cajero volvió a contar o cambió el monto).
+ * Las solicitudes de una entidad pertenecen a quien las pidió: otra persona con el mismo identificador recibe 409 y no
+ * invalida ni aprovecha la solicitud ajena.
  */
 export async function exigirAutorizacionCaja(tx: Tx, p: { tenantId: string; usuarioId: string; tipo: TipoCaja; entidadId: string; datos: unknown; resumen: Record<string, unknown> }):
   Promise<{ aprobada: true; solicitudId: string } | { aprobada: false; solicitudId: string; estado: 'PENDIENTE' }> {
   const huella = fingerprint({ tipo: p.tipo, entidad: p.entidadId, usuario: p.usuarioId, datos: p.datos });
-  const filas = await query(tx, `SELECT id, estado::text AS estado, operacion_hash FROM solicitudes_autorizacion
+  const filas = await query(tx, `SELECT id, estado::text AS estado, operacion_hash, solicitante_id FROM solicitudes_autorizacion
     WHERE tenant_id=$1 AND tipo=$2::"TipoSolicitudAutorizacion" AND entidad_id=$3 ORDER BY solicitada_at DESC, id DESC FOR UPDATE`, p.tenantId, p.tipo, p.entidadId);
+  if (filas.some((f: any) => f.solicitante_id !== p.usuarioId)) throw new ConflictException('Solicitud utilizada por otra persona. Inicie una solicitud nueva');
   const mismas = filas.filter((f: any) => f.operacion_hash === huella);
   const aprobada = mismas.find((f: any) => f.estado === 'APROBADA');
   if (aprobada) return { aprobada: true, solicitudId: aprobada.id };
@@ -83,6 +127,9 @@ export async function exigirAutorizacionCaja(tx: Tx, p: { tenantId: string; usua
     await query(tx, `UPDATE solicitudes_autorizacion SET estado='INVALIDADA', decisor_id=$3, decidida_at=now(), motivo_decision=$4
       WHERE id=$1 AND tenant_id=$2 AND estado='PENDIENTE' RETURNING id`, f.id, p.tenantId, p.usuarioId, 'La operación de caja cambió después de solicitar la autorización');
     await audit(tx, p.tenantId, p.usuarioId, 'AUTORIZACION_INVALIDADA', f.id, { tipo: p.tipo, entidadId: p.entidadId });
+  }
+  if (p.tipo === 'APERTURA_CAJA') {
+    await invalidarAperturasSobrantes(tx, { tenantId: p.tenantId, usuarioId: p.usuarioId, conservarId: null, motivo: 'La persona pidió otra apertura de caja' });
   }
   const solicitudId = id();
   await query(tx, `INSERT INTO solicitudes_autorizacion (id, tenant_id, tipo, estado, entidad_id, operacion_hash, resumen, solicitante_id)
