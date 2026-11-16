@@ -1,4 +1,5 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { moduleEnabled } from '../common/tenant-modules';
 import { PrismaService } from '../prisma/prisma.service';
 import { actor, audit, authorizedActor, query, type Tx } from '../operaciones/ledger';
 import { CotizacionesService } from '../cotizaciones/cotizaciones.service';
@@ -6,6 +7,26 @@ import { TIPO_DESCUENTO_COTIZACION, huellaDescuento, tieneDescuento } from '../c
 
 const POR_PAGINA = 50;
 const TIPOS_CAJA = ['APERTURA_CAJA', 'CIERRE_CAJA'];
+/**
+ * Módulo de cada tipo de solicitud. El controlador admite cualquiera de los dos módulos (entrada compartida), así que el
+ * servicio comprueba el módulo de la solicitud concreta: una de un módulo desactivado no se consulta, decide ni cancela por
+ * el otro (auditoría de #248). Misma semántica que el guard (`moduleEnabled`): sin registro, el módulo sigue disponible.
+ */
+const MODULO_POR_TIPO: Record<string, string> = { DESCUENTO_COTIZACION: 'cotizaciones', APERTURA_CAJA: 'arqueo_caja', CIERRE_CAJA: 'arqueo_caja' };
+
+async function tiposHabilitados(tx: Tx, tenantId: string): Promise<string[]> {
+  const modulos = [...new Set(Object.values(MODULO_POR_TIPO))];
+  const registros = await tx.tenantModule.findMany({ where: { tenantId, moduleKey: { in: modulos } }, select: { moduleKey: true, enabled: true } });
+  return Object.entries(MODULO_POR_TIPO)
+    .filter(([, modulo]) => moduleEnabled(modulo, registros.find((r) => r.moduleKey === modulo)))
+    .map(([tipo]) => tipo);
+}
+
+async function exigirModuloDe(tx: Tx, tenantId: string, tipo: string) {
+  if (!(await tiposHabilitados(tx, tenantId)).includes(tipo)) {
+    throw new ForbiddenException(`El módulo "${MODULO_POR_TIPO[tipo] ?? tipo}" no está habilitado para su suscripción.`);
+  }
+}
 
 interface Fila {
   id: string; tipo: string; estado: string; entidad_id: string; operacion_hash: string; resumen: unknown;
@@ -51,6 +72,10 @@ export class AutorizacionesService {
     const usuario = await actor(this.prisma as unknown as Tx, tenantId, usuarioId);
     const pagina = Number.isInteger(page) && page > 0 ? page : 1;
     const soloPropias = usuario.rol !== 'ADMIN';
+    // Solo tipos de módulos habilitados, aunque el cliente pida otros en `tipo`.
+    const habilitados = await tiposHabilitados(this.prisma as unknown as Tx, tenantId);
+    tipos = (tipos?.length ? tipos : habilitados).filter((t) => habilitados.includes(t));
+    if (!tipos.length) return { solicitudes: [], pendientes: 0, page: pagina, hayMas: false };
     const filas = await query<Fila>(this.prisma as unknown as Tx, `${SELECT}
       WHERE s.tenant_id = $1 AND ($2::text IS NULL OR s.estado::text = $2) AND ($3::text IS NULL OR s.solicitante_id = $3)
         AND ($5::text[] IS NULL OR s.tipo::text = ANY($5::text[]))
@@ -67,6 +92,7 @@ export class AutorizacionesService {
     const fila = await this.fila(this.prisma as unknown as Tx, tenantId, id);
     // Misma respuesta que «no existe» para no revelar solicitudes de otras personas.
     if (usuario.rol !== 'ADMIN' && fila.solicitante_id !== usuarioId) throw new NotFoundException('Solicitud de autorización no encontrada');
+    await exigirModuloDe(this.prisma as unknown as Tx, tenantId, fila.tipo);
     return vista(fila);
   }
 
@@ -86,6 +112,8 @@ export class AutorizacionesService {
     const usuario = await actor(this.prisma as unknown as Tx, tenantId, usuarioId);
     const fila = await this.fila(this.prisma as unknown as Tx, tenantId, id);
     if (usuario.rol !== 'ADMIN' && fila.solicitante_id !== usuarioId) throw new NotFoundException('Solicitud de autorización no encontrada');
+    // Antes de cambiar nada: con el módulo de la solicitud desactivado no se cancela (ni se quita el descuento de la cotización).
+    await exigirModuloDe(this.prisma as unknown as Tx, tenantId, fila.tipo);
     if (fila.estado !== 'PENDIENTE') throw new ConflictException(this.yaResuelta(fila));
     if (TIPOS_CAJA.includes(fila.tipo)) return this.prisma.$transaction((tx) => this.cancelarCaja(tx, tenantId, usuarioId, id));
     if (fila.tipo !== TIPO_DESCUENTO_COTIZACION) throw new ConflictException('Este tipo de solicitud no se puede cancelar desde aquí');
@@ -120,6 +148,7 @@ export class AutorizacionesService {
       const decisor = await authorizedActor(tx, tenantId, usuarioId, ['ADMIN']);
       if (decisor.rol !== 'ADMIN') throw new ForbiddenException('Solo un administrador puede decidir una solicitud de autorización');
       const previa = await this.fila(tx, tenantId, id);
+      await exigirModuloDe(tx, tenantId, previa.tipo);
       if (TIPOS_CAJA.includes(previa.tipo)) return this.decidirCaja(tx, tenantId, usuarioId, previa, decision, motivo);
       if (previa.tipo !== TIPO_DESCUENTO_COTIZACION) throw new ConflictException('Tipo de solicitud no admitido');
       // Mismo orden de bloqueo que las ediciones de la cotización: primero la cotización, después la solicitud.
