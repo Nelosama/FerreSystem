@@ -1,5 +1,22 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Etapa 4 de las decisiones del 2026-11-12: RTN del cliente — 2026-11-16 (rama `claude/jowa-etapa4-rtn`, base `main` `5feae04`)
+
+- **Estado de Git al iniciar:** `main` `5feae04` (merge de #247). Abiertos: #248 (etapa 3, caja; borrador, head `b17b4ca`, CI verde, sin hilos de revisión abiertos; las seis observaciones de Codex respondidas y corregidas) y #249 (evaluación de producción; borrador, head `057b657`, CI verde). #246 y #247 integrados. La etapa 4 no usa caja ni autorizaciones, así que parte de `main` en su propio PR sin esperar a #248.
+- **Regla (decisión del dueño del 2026-11-12, Notion):** si el cliente no pide RTN, el campo queda vacío y la operación sigue; si lo pide, exactamente 14 dígitos, con espacios o guiones como separadores visuales, y se guardan solo los dígitos; si no cumple, aviso y bloqueo hasta corregirlo. Se valida el formato, no la existencia.
+- **Implementado:**
+  - `backend/src/common/rtn.ts`: `rtnOpcional` y `normalizarRtn`; Contabilidad (`fiscal-hn.ts`) reutiliza la misma regla.
+  - Clientes (crear y editar), ventas (`clienteRtn`, después del reintento idempotente para que una venta ya registrada se siga devolviendo igual) y cotizaciones (crear y editar, también el RTN copiado del cliente registrado, con mensaje «corríjalo en Clientes»).
+  - **Datos guardados antes de la regla:** no se modifican ni hay migración; editar un cliente o una cotización sin enviar su RTN lo conserva; volver a enviarlo o copiarlo a un documento nuevo exige corregirlo.
+  - Pantalla (`frontend/src/utils/rtn.ts`, espejo de la regla): aviso junto al campo (`aria-invalid`, `role="alert"`) y bloqueo del cobro en el POS y del guardado en cotizaciones; en el POS la sección del cliente sigue visible mientras el RTN esté mal. Una venta pendiente se reenvía idéntica (no se vuelve a validar en pantalla). Clientes usa la misma regla: antes quitaba cualquier carácter no numérico y aceptaba, por ejemplo, letras intercaladas.
+- **Fuera de alcance (sin decisión o sin relación con la regla):** RTN del emisor (`configuracion.rtn`, lo configura el Super Admin); RTN de proveedores; RTN de la contingencia sin conexión (apagada; validarla podría rechazar al sincronizar ventas ya cobradas en el equipo).
+- **Pruebas nuevas:** `backend/src/common/rtn.spec.ts` (5), `backend/test/rtn-etapa4.postgres.integration.ts` (6: persistencia en dígitos, rechazo sin efectos en ventas, cotizaciones, existencias ni caja, idempotencia, datos heredados y aislamiento; con el código de `main` fallan 4 de 6), `frontend/test/rtn.test.mjs` (2), E2E en Chromium `pos-tarjeta-simulado.spec.ts` (+2; el del RTN mal escrito falla con la página anterior) y `cotizaciones-rtn-simulado.spec.ts` (2). `operaciones.test.mjs` y `pos-client-credit.test.mjs` registran la utilidad en su cargador (sin ella, el POS quedaba en bucle en esas pruebas).
+- **Fallos esperados de la integración:** los 2 son `it.fails` de `auditoria-produccion-20261030` (AUD-COM-01/02, cálculo residual de Comisiones; el módulo está en `MODULOS_NO_IMPLEMENTADOS`, no se puede contratar ni navegar). Existen desde el 2026-10-30 y no son regresiones.
+- **NEXUS:** sin cambios de esquema ni migraciones.
+- **Al integrar:** este documento tendrá conflicto de cabecera con #248 y #249 (cada rama añade su sección); se resuelve conservando todas.
+
+**Bitácora 2026-11-16 (etapa 4):** estado de `main`, PR, checks y comentarios en GitHub; sin observaciones de Codex pendientes; regla tomada de Notion; implementación, pruebas y PR propio. Resultados por SHA en el PR. Sin merge, despliegue ni bases reales.
+
 ## Etapa 2 de las decisiones del 2026-11-12: devoluciones y reembolsos — 2026-11-13 (rama `claude/affectionate-cori-pb4pv2`, base `main` `1eb7cb4`)
 
 - **Estado de Git al iniciar:** `main` `1eb7cb4` (merge de #246, etapa 1). La rama asignada se reinició desde ese `main` tras el merge. Sin otros PR abiertos ni ramas activas. Alcance y criterios en [#245](https://github.com/Nelosama/FerreSystem/issues/245).
