@@ -64,3 +64,9 @@ for (const branch of ['claude/persistencia-retencion-20261104', 'codex/pwa-aisla
     assert.equal(result.status, 0);
   });
 }
+
+// La rama de la evaluación de producción también queda desactivada en la configuración, no solo en ignoreCommand.
+test('evaluación sin despliegue: claude/jowa-production-readiness-dq4no2 desactivada en vercel.json', () => {
+  assert.equal(configuration.git.deploymentEnabled['claude/jowa-production-readiness-dq4no2'], false);
+  assert.equal(configuration.git.deploymentEnabled['claude/jowa-production-readiness-dq4no2-extra'], undefined);
+});

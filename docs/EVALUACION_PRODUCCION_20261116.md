@@ -69,7 +69,7 @@ Comprobado sin defecto en esta ronda (pruebas ejecutadas, no lectura de informes
 | B-07 | P1 | Monitoreo y alertas | No hay nada en el repositorio (sin dependencias de monitoreo) | Dueño | Monitor externo sobre `/api/health/live` y `/api/health` con alerta |
 | B-08 | P1 | Protección de `main` | `protected: false` | Dueño | PR obligatorio, checks `validate`, `test` y `guard-base-datos`, sin force push |
 | B-09 | P1 | Variables de Render y Vercel | Sin verificar | Dueño | Lista de nombres según el plan §2.4 y §2.6 |
-| B-10 | P2 | Vistas previas de Vercel | El bloqueo es por lista de ramas: #248 tiene vista previa pública. A qué API apunta `VITE_API_URL` en Preview no está verificado | Dueño | Confirmar que Preview no apunta a la API de producción, o bloquear por defecto |
+| B-10 | P2 | Vistas previas de Vercel | El bloqueo es por lista de ramas. La rama de #248 publicó vistas previas hasta que se bloqueó en `b17b4ca` (auditoría de Codex); la de esta evaluación queda bloqueada también en `vercel.json`. Las vistas previas ya publicadas siguen en línea y a qué API apunta `VITE_API_URL` en Preview no está verificado | Dueño | Retirar las vistas previas ya publicadas y confirmar que Preview no apunta a la API de producción, o bloquear por defecto |
 | B-11 | P2 | Decisiones del contador | Nota de crédito de devoluciones; tratamiento contable de garantía, merma y reembolsos pendientes; C-01, C-02 y C-04 | Contador | Respuesta escrita. No bloquean mientras Contabilidad siga apagada, el primer cliente opere sin CAI y compras no alimente crédito fiscal |
 
 ## 4. Cobertura por área
