@@ -194,6 +194,81 @@ describe('Caja — etapa 3 (cierre ciego, autonomía, traslado y avisos) / Postg
     expect(otra.solicitudAutorizacionId).not.toBe(pendiente.solicitudAutorizacionId);
   });
 
+  it('una aprobación de apertura sirve para una sola apertura: las solicitudes sobrantes no quedan utilizables', async () => {
+    await configurar({ aperturaAutonoma: false });
+    const estadoDe = async (id: string) => (await sql('SELECT estado::text AS estado FROM solicitudes_autorizacion WHERE id=$1', id))[0].estado;
+    // El cajero pide abrir dos veces con solicitudes distintas (otro equipo, o perdió la espera guardada): solo la última sigue viva.
+    const a = await abrir(cajero, 80);
+    const b = await abrir(cajero, 80);
+    expect(b.solicitudAutorizacionId).not.toBe(a.solicitudAutorizacionId);
+    expect(await estadoDe(a.solicitudAutorizacionId)).toBe('INVALIDADA');
+    expect((await pendientes(admin)).autorizaciones_caja).toBe(1);
+    await expect(autorizaciones.aprobar(tenantA, admin, a.solicitudAutorizacionId)).rejects.toThrow(ConflictException);
+    // Las solicitudes de otra persona no se tocan.
+    const ajena = await abrir(cajero2, 50);
+    expect(await estadoDe(b.solicitudAutorizacionId)).toBe('PENDIENTE');
+    expect(await estadoDe(ajena.solicitudAutorizacionId)).toBe('PENDIENTE');
+
+    // Una aprobación sin usar no sobrevive a otra apertura de la misma persona.
+    const sinUsar = randomUUID();
+    const c = await abrir(cajero, 60, sinUsar);
+    await autorizaciones.aprobar(tenantA, admin, c.solicitudAutorizacionId);
+    await configurar({ aperturaAutonoma: true });
+    const directa = await abrir(cajero, 40);
+    expect(directa).toMatchObject({ estado: 'ABIERTA' });
+    expect(await estadoDe(c.solicitudAutorizacionId)).toBe('INVALIDADA');
+    expect((await sql('SELECT decisor_id FROM solicitudes_autorizacion WHERE id=$1', c.solicitudAutorizacionId))[0].decisor_id).toBe(admin);
+    expect((await sql("SELECT COUNT(*)::int AS n FROM auditoria_operaciones WHERE tenant_id=$1 AND operacion='AUTORIZACION_INVALIDADA' AND entidad_id=$2", tenantA, c.solicitudAutorizacionId))[0].n).toBe(1);
+    await ops.conteoCaja(tenantA, cajero, directa.id, { monto: 40 });
+    await ops.cerrar(tenantA, cajero, directa.id, { monto: 40 } as any);
+    await configurar({ aperturaAutonoma: false });
+    // Con la tienda otra vez bajo autorización, la aprobación antigua no abre: hace falta una nueva.
+    const otraVez = await abrir(cajero, 60, sinUsar);
+    expect(otraVez).toMatchObject({ estado: 'PENDIENTE_AUTORIZACION' });
+    expect(otraVez.solicitudAutorizacionId).not.toBe(c.solicitudAutorizacionId);
+    expect(Number((await sql("SELECT COUNT(*) AS n FROM cajas WHERE tenant_id=$1 AND usuario_id=$2 AND estado='ABIERTA'", tenantA, cajero))[0].n)).toBe(0);
+    // La aprobación que sí se usó queda como historial, APROBADA.
+    await autorizaciones.aprobar(tenantA, admin2, otraVez.solicitudAutorizacionId);
+    const usada = await abrir(cajero, 60, sinUsar);
+    expect(usada).toMatchObject({ estado: 'ABIERTA' });
+    await ops.conteoCaja(tenantA, cajero, usada.id, { monto: 60 });
+    await ops.cerrar(tenantA, cajero, usada.id, { monto: 60 } as any);
+    await abrir(cajero, 10);
+    expect(await estadoDe(otraVez.solicitudAutorizacionId)).toBe('APROBADA');
+  });
+
+  it('la solicitud de apertura de una persona no la invalida ni la usa otra con el mismo identificador', async () => {
+    await configurar({ aperturaAutonoma: false });
+    const solicitudId = randomUUID();
+    const propia = await abrir(cajero, 80, solicitudId);
+    await expect(abrir(cajero2, 90, solicitudId)).rejects.toThrow(ConflictException);
+    await expect(abrir(cajero2, 80, solicitudId)).rejects.toThrow(ConflictException);
+    const [fila] = await sql('SELECT estado::text AS estado, solicitante_id FROM solicitudes_autorizacion WHERE id=$1', propia.solicitudAutorizacionId);
+    expect(fila).toMatchObject({ estado: 'PENDIENTE', solicitante_id: cajero });
+    expect((await sql("SELECT COUNT(*)::int AS n FROM solicitudes_autorizacion WHERE tenant_id=$1 AND tipo='APERTURA_CAJA'", tenantA))[0].n).toBe(1);
+    // Aprobada, tampoco la aprovecha otra persona.
+    await autorizaciones.aprobar(tenantA, admin, propia.solicitudAutorizacionId);
+    await expect(abrir(cajero2, 80, solicitudId)).rejects.toThrow(ConflictException);
+    expect(Number((await sql('SELECT COUNT(*) AS n FROM cajas WHERE tenant_id=$1 AND usuario_id=$2', tenantA, cajero2))[0].n)).toBe(0);
+    expect(await abrir(cajero, 80, solicitudId)).toMatchObject({ estado: 'ABIERTA', usuario_id: cajero });
+  });
+
+  it('al cerrar la caja no queda ninguna solicitud de cierre pendiente', async () => {
+    const c = await abrir(cajero, 100);
+    await configurar({ cierreAutonomo: false });
+    await ops.conteoCaja(tenantA, cajero, c.id, { monto: 100 });
+    const pedida = await ops.cerrar(tenantA, cajero, c.id, { monto: 100 } as any) as any;
+    expect(pedida.estado).toBe('PENDIENTE_AUTORIZACION');
+    expect((await pendientes(admin)).autorizaciones_caja).toBe(1);
+    // El ADMIN vuelve a permitir el cierre autónomo antes de decidir: el cajero cierra y la solicitud deja de esperar decisión.
+    await configurar({ cierreAutonomo: true });
+    expect(await ops.cerrar(tenantA, cajero, c.id, { monto: 100 } as any)).toMatchObject({ estado: 'CERRADA' });
+    const [fila] = await sql('SELECT estado::text AS estado, decisor_id FROM solicitudes_autorizacion WHERE id=$1', pedida.solicitudAutorizacionId);
+    expect(fila).toMatchObject({ estado: 'INVALIDADA', decisor_id: cajero });
+    expect((await pendientes(admin)).autorizaciones_caja).toBe(0);
+    expect((await pendientes(admin2)).autorizaciones_caja).toBe(0);
+  });
+
   it('cierre con autorización: pide aprobación del último conteo; un recuento la invalida; aprobado, el cajero cierra', async () => {
     const c = await abrir(cajero, 100);
     await configurar({ cierreAutonomo: false });

@@ -1,5 +1,7 @@
 -- NEXUS: reversión manual de emergencia, ejecutar solo con respaldo y backend anterior.
 -- El backend anterior ignora estas columnas y tablas: revertir código no requiere borrarlas.
+-- Con el backend anterior no rige configuracion_caja: una tienda que exigía autorización vuelve a abrir y cerrar sin ella, el cierre
+-- deja de ser ciego y las solicitudes APERTURA_CAJA/CIERRE_CAJA pendientes no se pueden decidir. Avisar a los ADMIN antes de revertir.
 -- Borrarlas elimina los conteos del cierre ciego, la configuración de caja, los traslados y las revisiones. Exportar antes.
 -- Los valores APERTURA_CAJA/CIERRE_CAJA del enum no se pueden quitar sin recrear el tipo: dejarlos es inofensivo.
 -- DROP TABLE configuracion_caja;

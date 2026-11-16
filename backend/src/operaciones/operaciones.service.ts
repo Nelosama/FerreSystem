@@ -14,7 +14,7 @@ import { soloVentasPropias } from '../common/datos-por-rol';
 import { esMetodoElectronico, normalizarAutorizacion, registrarAprobacion } from './aprobaciones-bancarias';
 import { listarConciliaciones, registrarConciliacion } from './conciliacion-bancaria';
 import { registrarReembolso, textoOpcional, type MetodoReembolso } from './reembolsos';
-import { CONDICION_AVISO_DIFERENCIA, configuracionCaja, exigirAutorizacionCaja, registrarConteo, saldoTrasladable, ultimoConteo, vistaConteo } from './caja-control';
+import { CONDICION_AVISO_DIFERENCIA, configuracionCaja, exigirAutorizacionCaja, invalidarAperturasSobrantes, invalidarCierresPendientes, registrarConteo, saldoTrasladable, ultimoConteo, vistaConteo } from './caja-control';
 import { aplicarDestinosDevolucion, cent, entregarLineas, ROLES_ENTREGA, ROLES_CONSULTA, type DestinoDevolucion } from '../entregas/entregas-core';
 
 export interface FiltrosCuentas { clienteId?: string; proveedorId?: string; estado?: string; desde?: string; hasta?: string }
@@ -317,6 +317,8 @@ export class OperacionesService {
    // Saldo que la misma persona dejó al cerrar su caja anterior: la apertura queda vinculada a esa caja.
    const anterior=await saldoTrasladable(tx,tenantId,userId);
    const [c]=await query(tx,'INSERT INTO cajas (id,tenant_id,codigo,usuario_id,monto_apertura,caja_anterior_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',idSolicitud(tenantId,dto.solicitudId),tenantId,`CAJA-${dto.solicitudId}`,userId,monto,anterior?.cajaId??null);
+   // Una aprobación de apertura sirve para una sola apertura: las demás solicitudes vivas de esta persona dejan de valer.
+   await invalidarAperturasSobrantes(tx,{tenantId,usuarioId:userId,conservarId:autorizacionId,motivo:'La persona abrió su caja sin usar esta solicitud'});
    await audit(tx,tenantId,userId,'CAJA_ABRIR',c.id,{monto,autorizacionId,cajaAnteriorId:anterior?.cajaId??null,saldoTrasladado:anterior?.monto??null});
    return {...c,saldo_trasladado:anterior?.monto??null};
   });
@@ -350,6 +352,7 @@ export class OperacionesService {
     autorizacionId=aut.solicitudId;
    }
    const [closed]=await query(tx,'UPDATE cajas SET monto_cierre_fisico=$1,monto_esperado=$2,diferencia=$3,estado=\'CERRADA\',fecha_cierre=NOW(),notas=$4,monto_trasladado=$5 WHERE id=$6 RETURNING *',monto,esperado,diferencia,notas,trasladado,c.id);
+   await invalidarCierresPendientes(tx,{tenantId,usuarioId:userId,cajaId:c.id});
    await audit(tx,tenantId,userId,'CAJA_CERRAR',c.id,{monto,esperado,diferencia,notas,montoTrasladado:trasladado,conteoId:conteo.fila.id,conteos:conteo.numero,autorizacionId,aviso:diferencia!==0&&Math.abs(diferencia)>=cfg.umbralAvisoDiferencia});
    return {...closed,resumen:this.resumenCaja(closed,movements)};
   });
