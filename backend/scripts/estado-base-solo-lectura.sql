@@ -63,7 +63,7 @@ WITH esperado(nombre, sha_lf, sha_crlf) AS (VALUES
   ('20261029000000_desglose_fiscal_linea','1f67d45a6346d0b358cc9740ef3c2d2faba9d8c32bc78257b8ef1a93716cd051','6891cce7961337587f9c5b486620f6fa6adae827051889ce4751ad89b8dea061'),
   ('20261113000000_solicitudes_autorizacion','e070d648a329ecac0eea795f69d177dce6b0ba9492464d2c097eebd5ed4638ae','414dc5d9d493c79a363003276c189a27f6656d293aa5b01ea2ca1e907c299ccc'),
   ('20261114000000_reembolsos_devolucion','795ca55f511b1797d6bc62faa642d6e0125739e541e12734596d0adc93938416','44ca53f6094e46fbfb74f5f5c997aba5478cd00750924e3ecf2df37204a76bd2'),
-  ('20261115000000_caja_cierre_ciego','74f978ffeb71304785c966d8cc188f70769b15f59ee971ea1a4440e5464af681','8bcdba9d6f1d1b63b6bdea1c520c81d4a9395620dad44d0161220e9f7b030daa')
+  ('20261115000000_caja_cierre_ciego','858c908e63401ee551f54e2441e7069d8c245c79d987347d6dad2fd4db28cb0d','805a66044ca7aabc6dbb385b2de072c38dcacfc75ca69ca19b19b8c626807d4b')
 ), aplicada AS (
   SELECT migration_name, checksum, finished_at, rolled_back_at FROM _prisma_migrations
 )

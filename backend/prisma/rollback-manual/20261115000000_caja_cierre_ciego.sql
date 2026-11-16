@@ -2,9 +2,12 @@
 -- El backend anterior ignora estas columnas y tablas: revertir código no requiere borrarlas.
 -- Borrarlas elimina los conteos del cierre ciego, la configuración de caja, los traslados y las revisiones. Exportar antes.
 -- Los valores APERTURA_CAJA/CIERRE_CAJA del enum no se pueden quitar sin recrear el tipo: dejarlos es inofensivo.
+-- DROP TRIGGER cajas_revisor_misma_empresa ON cajas; DROP TRIGGER cajas_anterior_misma_empresa ON cajas;
 -- DROP TABLE configuracion_caja;
 -- DROP TABLE conteos_caja;
 -- ALTER TABLE cajas DROP CONSTRAINT cajas_caja_anterior_id_fkey, DROP CONSTRAINT cajas_diferencia_revisada_por_fkey,
 --   DROP CONSTRAINT cajas_traslado_chk, DROP CONSTRAINT cajas_revision_chk;
 -- DROP INDEX cajas_caja_anterior_id_key;
+-- DROP FUNCTION caja_verificar_misma_empresa();
+-- ALTER TABLE cajas DROP CONSTRAINT cajas_tenant_id_id_key;
 -- ALTER TABLE cajas DROP COLUMN monto_trasladado, DROP COLUMN caja_anterior_id, DROP COLUMN diferencia_revisada_por, DROP COLUMN diferencia_revisada_at;

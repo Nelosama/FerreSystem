@@ -305,6 +305,43 @@ describe('Caja — etapa 3 (cierre ciego, autonomía, traslado y avisos) / Postg
     }
   });
 
+  it('integridad multiempresa: la base rechaza conteos, traslados, revisiones y configuración con caja o usuario de otra empresa; las lecturas cruzadas no ven nada', async () => {
+    const cajaA = await abrir(cajero, 100);
+    await ops.conteoCaja(tenantA, cajero, cajaA.id, { monto: 100 });
+    const cajaB = await ops.abrir(tenantB, adminB, { solicitudId: randomUUID(), monto: 50 } as any) as any;
+    const exec = (q: string, ...args: any[]) => prisma.$executeRawUnsafe(q, ...args);
+    const insertarConteo = (tenant: string, caja: string, usuario: string) =>
+      exec('INSERT INTO conteos_caja (id, tenant_id, caja_id, usuario_id, monto, esperado, diferencia) VALUES ($1,$2,$3,$4,10,10,0)', randomUUID(), tenant, caja, usuario);
+    const rechazo = /conteos_caja_caja_id_fkey|no pertenece a la empresa|foreign key/i;
+
+    // Conteo de la empresa A con la caja de B: lo rechaza la FK compuesta (tenant_id, caja_id) → cajas(tenant_id, id).
+    await expect(insertarConteo(tenantA, cajaB.id, cajero)).rejects.toThrow(/conteos_caja_caja_id_fkey/);
+    // Conteo de la empresa A con un usuario de B: lo rechaza el trigger de misma empresa.
+    await expect(insertarConteo(tenantA, cajaA.id, adminB)).rejects.toThrow(/no pertenece a la empresa/);
+    // Mover un conteo existente a otra empresa o a otro usuario ajeno tampoco pasa.
+    const [{ id: conteoId }] = await sql('SELECT id FROM conteos_caja WHERE caja_id=$1', cajaA.id);
+    await expect(exec('UPDATE conteos_caja SET usuario_id=$2 WHERE id=$1', conteoId, adminB)).rejects.toThrow(rechazo);
+    await expect(exec('UPDATE conteos_caja SET tenant_id=$2 WHERE id=$1', conteoId, tenantB)).rejects.toThrow(rechazo);
+    // Las demás referencias nuevas de la migración: caja anterior, revisor y autor de la configuración.
+    await expect(exec('UPDATE cajas SET caja_anterior_id=$2 WHERE id=$1', cajaA.id, cajaB.id)).rejects.toThrow(/no pertenece a la empresa/);
+    await expect(exec('UPDATE cajas SET diferencia_revisada_por=$2, diferencia_revisada_at=now() WHERE id=$1', cajaA.id, adminB)).rejects.toThrow(/no pertenece a la empresa/);
+    await expect(exec('INSERT INTO configuracion_caja (tenant_id, actualizado_por) VALUES ($1,$2)', tenantA, adminB)).rejects.toThrow(/no pertenece a la empresa/);
+    // Control: con caja y usuario de la misma empresa sí se guarda.
+    await insertarConteo(tenantA, cajaA.id, cajero);
+    expect((await sql('SELECT COUNT(*)::int AS n FROM conteos_caja WHERE caja_id=$1', cajaA.id))[0].n).toBe(2);
+    expect((await sql('SELECT COUNT(*)::int AS n FROM conteos_caja c JOIN cajas k ON k.id=c.caja_id WHERE c.tenant_id <> k.tenant_id'))[0].n).toBe(0);
+
+    // Lecturas y operaciones cruzadas con la sesión de la empresa B sobre la caja de A: no la encuentran.
+    await expect(ops.cajaDetalle(tenantB, adminB, cajaA.id)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(ops.conteoCaja(tenantB, adminB, cajaA.id, { monto: 1 })).rejects.toBeInstanceOf(NotFoundException);
+    await expect(ops.revisarDiferenciaCaja(tenantB, adminB, cajaA.id)).rejects.toBeInstanceOf(NotFoundException);
+    const cierresB = await ops.cierresCaja(tenantB, adminB, {}) as any[];
+    expect(cierresB.map((c) => c.id)).not.toContain(cajaA.id);
+    // Y la empresa A ve sus conteos en el detalle, ninguno de B.
+    const detalleA = await ops.cajaDetalle(tenantA, admin, cajaA.id) as any;
+    expect(detalleA.conteos).toHaveLength(2);
+  });
+
   it('saldo trasladable: como máximo lo contado; la siguiente apertura de la misma persona queda vinculada', async () => {
     const c = await abrir(cajero, 100);
     await expect(ops.cerrar(tenantA, cajero, c.id, { monto: 100, montoTrasladado: 150 } as any)).rejects.toThrow(/no puede superar/);

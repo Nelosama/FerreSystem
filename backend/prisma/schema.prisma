@@ -939,6 +939,7 @@ model Caja {
  diferenciaRevisadaPor String? @map("diferencia_revisada_por")
  diferenciaRevisadaAt DateTime? @map("diferencia_revisada_at") @db.Timestamptz
  @@unique([tenantId,codigo])
+ @@unique([tenantId, id], map: "cajas_tenant_id_id_key")
  @@index([tenantId,estado])
  @@index([tenantId,usuarioId])
  @@map("cajas")
@@ -964,7 +965,7 @@ model ConteoCaja {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade, map: "conteos_caja_tenant_id_fkey")
-  caja    Caja    @relation(fields: [cajaId], references: [id], onDelete: Restrict, map: "conteos_caja_caja_id_fkey")
+  caja    Caja    @relation(fields: [tenantId, cajaId], references: [tenantId, id], onDelete: Restrict, map: "conteos_caja_caja_id_fkey")
   usuario Usuario @relation("ConteoCajaUsuario", fields: [usuarioId], references: [id], onDelete: Restrict, map: "conteos_caja_usuario_id_fkey")
 
   @@index([cajaId, createdAt], map: "conteos_caja_caja_idx")
