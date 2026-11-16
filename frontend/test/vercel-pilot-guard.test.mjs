@@ -63,3 +63,12 @@ for (const branch of ['claude/persistencia-retencion-20261104', 'codex/pwa-aisla
     assert.equal(result.status, 0);
   });
 }
+
+// Etapa 4 (RTN): la rama no genera vistas previas; el bloqueo es por nombre exacto.
+test('etapa 4 sin despliegue: claude/jowa-etapa4-rtn bloqueada por configuración y por ignoreCommand', () => {
+  const branch = 'claude/jowa-etapa4-rtn';
+  assert.equal(configuration.git.deploymentEnabled[branch], false);
+  const ignorar = (ref) => spawnSync('sh', ['-c', configuration.ignoreCommand], { cwd: frontendDir, env: { VERCEL_GIT_COMMIT_REF: ref }, encoding: 'utf8' }).status;
+  assert.equal(ignorar(branch), 0);
+  assert.equal(ignorar(`${branch}-extra`), 1);
+});
