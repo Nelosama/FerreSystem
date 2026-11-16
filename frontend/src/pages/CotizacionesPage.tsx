@@ -35,6 +35,7 @@ import { descargarReciboPDF, precargarGeneradorPDF } from '../components/descarg
 import { ClientePicker, type ClienteSeleccionable } from '../components/ClientePicker';
 import { filterCotizaciones } from '../utils/cotizacionesFilters';
 import { isvDocumentoCentavos } from '../utils/isv-documento';
+import { rtnValidoOVacio } from '../utils/rtn';
 
 export const CotizacionesPage: React.FC = () => {
   const { tenant, user, isReadOnly } = useTenant();
@@ -527,6 +528,12 @@ export const CotizacionesPage: React.FC = () => {
 
     if (formItems.length === 0) {
       mostrarNotificacion('Agregue al menos un producto a la cotización', 'error');
+      return;
+    }
+
+    // Etapa 4: RTN vacío o de 14 dígitos (espacios o guiones admitidos); el servidor guarda solo los dígitos.
+    if (!rtnValidoOVacio(formClienteRtn)) {
+      mostrarNotificacion(t(formClienteId ? 'validation.rtn_cliente_registrado' : 'validation.rtn_formato'), 'error');
       return;
     }
 
@@ -1093,7 +1100,12 @@ export const CotizacionesPage: React.FC = () => {
                       value={formClienteRtn}
                       readOnly={Boolean(formClienteId)}
                       onChange={(e) => setFormClienteRtn(e.target.value)}
+                      aria-label={t('operational.rtn_del_cliente_opcional')}
+                      aria-invalid={!rtnValidoOVacio(formClienteRtn)}
+                      aria-describedby={!rtnValidoOVacio(formClienteRtn) ? 'cot-rtn-aviso' : undefined}
                     />
+                    {!rtnValidoOVacio(formClienteRtn) && <small id="cot-rtn-aviso" role="alert" data-testid="cot-rtn-aviso" style={{ color: 'var(--color-danger, #b91c1c)', display: 'block', marginTop: 4 }}>
+                      {t(formClienteId ? 'validation.rtn_cliente_registrado' : 'validation.rtn_formato')}</small>}
                   </div>
 
                   <div className="form-group">

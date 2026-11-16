@@ -1,4 +1,5 @@
 import { account, actor, authorizedActor, audit, cashMovement, decimal, id, lockTenant, money, openCash, query } from '../operaciones/ledger';
+import { rtnOpcional } from '../common/rtn';
 import { exigirPoliticaPrecio } from '../ventas/politica-precio';
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -97,6 +98,8 @@ export class CotizacionesService {
       clienteEmail = cliente.email || clienteEmail;
       clienteDireccion = cliente.direccion || clienteDireccion;
     }
+    // Etapa 4: el RTN que entra a la cotización (escrito o copiado del cliente registrado) es vacío o de 14 dígitos.
+    clienteRtn = rtnOpcional(clienteRtn, dto.clienteId && clienteRtn ? 'RTN del cliente registrado (corríjalo en Clientes)' : 'RTN del cliente');
 
     if (!clienteNombre.trim()) {
       clienteNombre = 'Consumidor Final';
@@ -284,6 +287,10 @@ export class CotizacionesService {
           clienteEmail = cliente.email || clienteEmail;
           clienteDireccion = cliente.direccion || clienteDireccion;
         }
+      }
+      // Etapa 4: se valida el RTN que se envía o se copia del cliente; si la edición no lo toca, el guardado antes se conserva.
+      if (dto.clienteRtn !== undefined || dto.clienteId) {
+        clienteRtn = rtnOpcional(clienteRtn, dto.clienteId && clienteRtn ? 'RTN del cliente registrado (corríjalo en Clientes)' : 'RTN del cliente');
       }
 
       // Eliminar detalles previos

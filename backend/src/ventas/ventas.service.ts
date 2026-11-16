@@ -1,4 +1,5 @@
 import { type Tx, account, authorizedActor, audit, cashMovement, decimal, fingerprint, id as nuevoId, esIdInterno, idSolicitud, candidatosSolicitud, lockTenant, money, openCash, query, validateDiscount } from '../operaciones/ledger';
+import { rtnOpcional } from '../common/rtn';
 import { diaCalendario, sumarDias } from '../common/zona-horaria';
 import { normalizarAutorizacion, registrarAprobacion } from '../operaciones/aprobaciones-bancarias';
 import { aCentesimas, huellaCanonica, normalizarTexto } from '../common/huella-solicitud';
@@ -280,6 +281,9 @@ export class VentasService {
       }
 
       if (await this.solicitudDescartada(tx, tenantId, dto.solicitudId)) throw new ConflictException('La venta fue descartada; inicie una venta nueva');
+      // Etapa 4: RTN del comprador vacío o de 14 dígitos (se guardan solo los dígitos). Va después del reintento idempotente
+      // para que una venta ya registrada antes de la regla se siga devolviendo igual.
+      const clienteRtn = rtnOpcional(dto.clienteRtn, 'RTN del cliente');
 
       if (!['EFECTIVO','TARJETA','TRANSFERENCIA','CREDITO'].includes(metodo)) throw new BadRequestException('Método de pago inválido');
       if (tipoPago === 'CREDITO' && !dto.clienteId) throw new BadRequestException('Seleccione un cliente registrado para vender a crédito');
@@ -429,7 +433,7 @@ export class VentasService {
           usuarioId,
           cajaId: caja.id,
           clienteNombre: dto.clienteNombre?.trim() || null,
-          clienteRtn: dto.clienteRtn?.trim() || null,
+          clienteRtn,
           solicitudHash: requestHash,
           subtotal: subtotalTotal,
           isv,
