@@ -380,6 +380,9 @@ export class OperacionesService {
   });
  }
  async historial(tenantId:string,productoId:string){
+  // T-07: un producto de otra empresa (o inexistente) responde 404, igual que el resto de consultas por identificador.
+  const producto=await this.prisma.producto.findFirst({where:{id:productoId,tenantId},select:{id:true}});
+  if(!producto)throw new NotFoundException('Producto no encontrado');
   return {movimientos:await query(this.prisma,'SELECT m.*,u.nombre AS usuario_nombre FROM movimientos_inventario m JOIN usuarios u ON u.id=m.usuario_id WHERE m.tenant_id=$1 AND m.producto_id=$2 ORDER BY m.created_at DESC',tenantId,productoId),costos:await query(this.prisma,'SELECT c.*,p.nombre AS proveedor_nombre,o.numero_factura FROM costos_compra c JOIN proveedores p ON p.id=c.proveedor_id JOIN ordenes_compra o ON o.id=c.orden_id WHERE c.tenant_id=$1 AND c.producto_id=$2 ORDER BY c.fecha DESC',tenantId,productoId)};
  }
  async ajustar(tenantId:string,userId:string,productoId:string,dto:AjusteDto){

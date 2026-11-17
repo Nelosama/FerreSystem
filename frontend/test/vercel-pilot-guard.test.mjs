@@ -33,6 +33,7 @@ for (const [branch, expected] of [
   ['claude/sweet-davinci-vh7br4', 0], ['claude/sweet-davinci-vh7br4-extra', 1],
   ['claude/festive-lovelace-nfqn88', 0], ['claude/festive-lovelace-nfqn88-extra', 1],
   ['claude/zealous-hypatia-n3fjte', 0], ['claude/zealous-hypatia-n3fjte-extra', 1],
+  ['claude/jowa-production-readiness-dq4no2', 0], ['claude/jowa-production-readiness-dq4no2-extra', 1],
   ['main', 0], ['fix/auditoria-admin', 1], ['fix/pilot-readiness-extra', 1],
   ['claude/revision-seguridad-jowa-20261020', 0], ['claude/revision-seguridad-jowa-20261020-extra', 1],
 ]) {
@@ -73,4 +74,10 @@ test('etapa 3 sin despliegue: claude/affectionate-cori-pb4pv2 bloqueada por conf
   assert.equal(ignorar(branch), 0);
   assert.equal(ignorar(`${branch}-extra`), 1);
   assert.equal(configuration.git.deploymentEnabled[`${branch}-extra`], undefined);
+});
+
+// La rama de la evaluación de producción también queda desactivada en la configuración, no solo en ignoreCommand.
+test('evaluación sin despliegue: claude/jowa-production-readiness-dq4no2 desactivada en vercel.json', () => {
+  assert.equal(configuration.git.deploymentEnabled['claude/jowa-production-readiness-dq4no2'], false);
+  assert.equal(configuration.git.deploymentEnabled['claude/jowa-production-readiness-dq4no2-extra'], undefined);
 });

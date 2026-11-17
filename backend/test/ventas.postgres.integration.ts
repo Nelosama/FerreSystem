@@ -641,7 +641,10 @@ describe('Ventas / PostgreSQL aislado', () => {
     const order=await ops.compra(tenantId,usuarioId,{solicitudId:randomUUID(),proveedorId:provider.id,numeroFactura:'F1',isv:0,items:[{productoId,cantidad:1,costo:2}]});
     const foreignUser=await prisma.usuario.create({data:{tenantId:'legacy-B',nombre:'Administrador ajeno',email:`${randomUUID()}@example.test`,passwordHash:'test-only',rol:'ADMIN'}});
     await expect(ops.recibir('legacy-B',foreignUser.id,order.id,{solicitudId:randomUUID(),items:[{detalleId:'x',cantidad:1}]})).rejects.toThrow('no encontrada');
-    expect(await ops.historial('legacy-B',productoId)).toEqual({movimientos:[],costos:[]});
+    // T-07: el historial de un producto de otra empresa responde 404, no listas vacías; el dueño sí lo consulta.
+    await expect(ops.historial('legacy-B',productoId)).rejects.toThrow('Producto no encontrado');
+    await expect(ops.historial(tenantId,randomUUID())).rejects.toThrow('Producto no encontrado');
+    expect((await ops.historial(tenantId,productoId)).costos).toEqual([]);
   });
 
   it('reservar evita sobreventa; solo la entrega reduce inventario físico y repetirla no descuenta otra vez',async()=>{
