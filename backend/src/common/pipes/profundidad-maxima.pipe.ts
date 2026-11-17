@@ -1,4 +1,5 @@
-import { ArgumentMetadata, BadRequestException, INestApplication, PipeTransform, ValidationPipe } from '@nestjs/common';
+import { ArgumentMetadata, BadRequestException, INestApplication, PipeTransform } from '@nestjs/common';
+import { ValidationPipeEnEspanol } from './mensajes-validacion';
 
 /**
  * H-P (CENTINELA): el ValidationPipe de Nest recorre el cuerpo de forma recursiva (`stripProtoKeys`); un JSON muy anidado
@@ -52,6 +53,6 @@ export function configurarPipesGlobales(app: INestApplication) {
   app.useGlobalPipes(
     new ProfundidadMaximaPipe(),
     new CuerpoDeTipoCorrectoPipe(),
-    new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }),
+    new ValidationPipeEnEspanol({ whitelist: true, transform: true, forbidNonWhitelisted: false }),
   );
 }
