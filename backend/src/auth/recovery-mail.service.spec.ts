@@ -134,3 +134,27 @@ describe('RecoveryMailService con nodemailer real (sin red)', () => {
     }
   });
 });
+
+// Revisión de Codex en #249 (CVE-2026-125755 / GHSA-3q53-mvfw-q9v8): antes de 10.4.1, un espacio de plegado o un comentario
+// junto al punto del dominio lo truncaba («titular@negocio .ajeno.test» → «titular@negocio»), y el correo iba a un buzón
+// distinto del que entiende un analizador RFC 5322. Con la versión corregida el sobre conserva el dominio completo.
+describe('RecoveryMailService con nodemailer real: dominio con espacios o comentarios (sin red)', () => {
+  it('el sobre conserva el dominio completo y nunca lo trunca', async () => {
+    const { createTransport } = await import('nodemailer');
+    for (const [destino, esperado] of [
+      ['titular@negocio .ajeno.test', 'titular@negocio.ajeno.test'],
+      ['titular@negocio. ajeno.test', 'titular@negocio.ajeno.test'],
+      ['titular@negocio(c).ajeno.test', 'titular@negocio.ajeno.test'],
+      ['titular@negocio.(c)ajeno.test', 'titular@negocio.ajeno.test'],
+      ['"Titular" <titular@negocio .ajeno.test>', 'titular@negocio.ajeno.test'],
+    ] as const) {
+      const real = createTransport({ streamTransport: true, buffer: true, newline: 'unix' } as any);
+      const valores = entorno();
+      const resultados: any[] = [];
+      const servicio = new RecoveryMailService({ get: (clave: string) => (valores as any)[clave] } as any,
+        (() => ({ sendMail: async (m: any) => { const r = await real.sendMail(m); resultados.push(r); return r; }, close: () => real.close() })) as any);
+      await servicio.sendTemporaryPassword(destino, 'AbCd-EfGh-JkMn-PqRs');
+      expect(resultados[0].envelope.to, destino).toEqual([esperado]);
+    }
+  });
+});

@@ -8,7 +8,7 @@
 - **Corregido en esta rama:**
   - T-06: mensajes de validación por defecto en español (`backend/src/common/pipes/mensajes-validacion.ts`, usado por `configurarPipesGlobales`). No cambia qué se valida ni la forma de la respuesta; los mensajes propios de cada DTO no se tocan.
   - T-07: `GET /operaciones/productos/:id/historial` responde 404 para un producto ajeno o inexistente (`operaciones.service.ts`).
-  - T-02: `nodemailer` 10.0.16 → 10.3.1; `npm audit --omit=dev` queda en 0 avisos. Prueba nueva con la biblioteca real y sin red (`recovery-mail.service.spec.ts`). El envío real sigue sin probar.
+  - T-02: `nodemailer` 10.0.16 → 10.4.1; `npm audit --omit=dev` queda en 0 avisos. La primera versión del PR subió a 10.3.1, que seguía truncando el dominio con un espacio o un comentario junto al punto (CVE-2026-125755, revisión de Codex del 2026-11-17; `npm audit` no lo detecta). Pruebas con la biblioteca real y sin red (`recovery-mail.service.spec.ts`); la del dominio falla con 10.3.1. El envío real sigue sin probar.
   - Rama añadida al bloqueo de vistas previas de Vercel antes del primer push (`frontend/scripts/vercel-ignore.sh`, prueba 49/49).
 - **No iniciado:** etapa 4 (RTN). Regla decidida por el dueño el 2026-11-12, pero sin alcance publicado en #245 ni confirmación de que sea requisito de la primera salida; Notion la asigna a Codex. Propuesta en el §5 de la evaluación.
 - **NEXUS:** sin cambios de esquema ni migraciones en esta rama.
