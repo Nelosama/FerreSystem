@@ -69,7 +69,8 @@
       "claude/focused-hawking-52oiqz": false,
       "claude/sweet-ritchie-wrwsbo": false,
       "claude/jowa-production-readiness-dq4no2": false,
-      "claude/jowa-etapa4-rtn": false
+      "claude/jowa-etapa4-rtn": false,
+      "claude/nifty-cannon-q0ourg": false
     }
   },
   "ignoreCommand": "sh scripts/vercel-ignore.sh"

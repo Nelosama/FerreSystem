@@ -41,8 +41,9 @@ export class ClientesController {
   async create(
     @TenantId() tenantId: string,
     @Body() dto: CreateClienteDto,
+    @CurrentUser('sub') usuarioId: string,
   ) {
-    return this.clientesService.create(tenantId, dto);
+    return this.clientesService.create(tenantId, dto, usuarioId);
   }
 
   @Put(':id')

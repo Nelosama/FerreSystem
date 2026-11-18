@@ -45,7 +45,7 @@ Prioridad: P0 impide operar o pierde dinero o datos; P1 riesgo alto para la prim
 | ID | Prioridad | Hallazgo y evidencia (verificada hoy salvo indicación) | Impacto | ¿Corregible por código? | Criterio de aceptación |
 |---|---|---|---|---|---|
 | A-01 | P1 | #248 sin integrar: `main` no tiene cierre ciego, autorización de caja ni saldo trasladable; tres supuestos sin confirmar | La caja de la primera salida depende de qué versión se despliegue | Código listo; falta decisión | Dueño confirma los tres supuestos; Codex revisa `d49bf2b` o posterior; CI verde en el SHA final |
-| A-02 | P2 | Altas sin `solicitudId` (clientes, cotizaciones, duplicar cotización): `CreateClienteDto` y `CreateCotizacionDto` no lo tienen | Un reintento tras fallo de red crea un cliente o una cotización duplicados. No afecta dinero ni existencias | Sí. No se hizo aquí: cambia el contrato de tres pantallas y de la API | Repetir la misma solicitud devuelve el mismo registro; prueba de integración y E2E |
+| A-02 | P2 | Altas sin `solicitudId` (clientes, cotizaciones, duplicar cotización): `CreateClienteDto` y `CreateCotizacionDto` no lo tienen | Un reintento tras fallo de red crea un cliente o una cotización duplicados. No afecta dinero ni existencias | **Implementado en la rama `claude/nifty-cannon-q0ourg`** (2026-11-18, dependiente de #250, sin migración): `solicitudId` opcional en las tres altas y clave conservada por la pantalla; detalle en el contexto maestro | Repetir la misma solicitud devuelve el mismo registro; prueba de integración y E2E (añadidas). Pendiente: revisión e integración tras #250 |
 | A-03 | P2 | T-04: cotización con precio unitario libre. La conversión a venta lo rechaza (409) | Un cliente puede recibir una cotización que no se podrá vender | Sí, tras decidir la regla | Decisión del dueño: límite, autorización o permitirlo |
 | A-04 | P2 | C-01: `compra()` acepta cualquier ISV entre 0 y el subtotal | Crédito fiscal mal registrado si compras alimenta libros | Sí, tras decidir la tasa | Decisión del contador; hasta entonces compras es solo registro de costo |
 | A-05 | P3 | RTN del cliente sin formato (`create-cliente.dto.ts` solo limitaba el largo) | Dato fiscal sin validar | **Implementado en #250** (etapa 4, borrador): regla común en servidor y pantalla para clientes, ventas y cotizaciones | Auditoría de Codex y merge de #250; decisiones abiertas en su descripción (RTN del emisor, RTN heredados) |
@@ -81,7 +81,7 @@ Comprobado sin defecto en esta ronda (pruebas ejecutadas, no lectura de informes
 | Caja | `main`: caja anterior. #248: 15 pruebas de integración propias | Tres supuestos pendientes |
 | Devoluciones y reembolsos | Etapa 2 en `main`, revisada por Codex en #247 | Documento fiscal y asiento: contador |
 | Dinero, ISV y crédito | Centavos enteros, ISV 15 % sobre base gravada, paridad con SICOFI (`paridad-sicofi.spec.ts`) | Solo gravado 15 %; sin exentas |
-| Idempotencia y auditoría | Ventas, pagos, caja, compras y devoluciones por `solicitudId`; `auditoria_operaciones` | A-02 |
+| Idempotencia y auditoría | Ventas, pagos, caja, compras y devoluciones por `solicitudId`; `auditoria_operaciones`. Clientes, cotizaciones y copias: rama de A-02 | A-02 hasta integrar |
 | Migraciones | `verificar-migraciones`: correcto; ensayo de actualización y reversión en CI | Solo bases temporales (B-03) |
 | Contingencia PWA | Apagada; pruebas simuladas | NO-GO propio (A-07) |
 | Infraestructura | Solo lo que demuestra el repositorio | B-01, B-02, B-06, B-07, B-09 |

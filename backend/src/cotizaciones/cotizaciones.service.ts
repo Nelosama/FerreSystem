@@ -1,5 +1,6 @@
 import { account, actor, authorizedActor, audit, cashMovement, decimal, id, lockTenant, money, openCash, query } from '../operaciones/ledger';
 import { rtnOpcional } from '../common/rtn';
+import { altaPrevia, esChoqueDeId, huellaAlta, idAlta, MENSAJE_CLAVE_REUTILIZADA, registrarAlta, type OperacionAlta } from '../common/idempotencia-alta';
 import { exigirPoliticaPrecio } from '../ventas/politica-precio';
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -73,7 +74,57 @@ export class CotizacionesService {
     return this.formatCotizacion(c, hoy, rol, evaluarAutorizacion(c, await solicitudesDeCotizaciones(this.prisma as any, tenantId, [c.id])));
   }
 
+  /**
+   * A-02: respuesta de un reintento idempotente. Misma forma que la respuesta del alta original (mismas relaciones y
+   * estado de autorización vigente). Si el registro ya no existe, la clave no puede reutilizarse.
+   */
+  private async respuestaAlta(tenantId: string, id: string, rol?: string) {
+    const c = await this.prisma.cotizacion.findFirst({
+      where: { id, tenantId },
+      include: {
+        cliente: true,
+        usuario: { select: { id: true, nombre: true } },
+        detalles: { include: { producto: true } },
+      },
+    });
+    if (!c) throw new ConflictException(MENSAJE_CLAVE_REUTILIZADA);
+    return this.formatCotizacion(c, new Date(), rol, evaluarAutorizacion(c, await solicitudesDeCotizaciones(this.prisma as any, tenantId, [c.id])));
+  }
+
+  /** A-02: ejecuta un alta con clave opcional. Sin clave, `crear` se llama sin identificador y nada cambia. */
+  private async altaIdempotente<T>(tenantId: string, usuarioId: string, operacion: OperacionAlta, solicitudId: string | undefined, contenido: Record<string, unknown>, rol: string | undefined,
+    crear: (clave: { id: string; registrar: (tx: any, entidadId: string, datos: Record<string, unknown>) => Promise<void> } | null) => Promise<T>): Promise<T> {
+    if (!solicitudId) return crear(null);
+    const hash = huellaAlta(operacion, contenido);
+    const previo = await altaPrevia(this.prisma as any, tenantId, usuarioId, operacion, solicitudId, hash);
+    if (previo) return this.respuestaAlta(tenantId, previo, rol) as Promise<T>;
+    try {
+      return await crear({
+        id: idAlta(tenantId, operacion, solicitudId),
+        registrar: (tx, entidadId, datos) => registrarAlta(tx, tenantId, usuarioId, operacion, entidadId, solicitudId, hash, datos),
+      });
+    } catch (error) {
+      // Dos envíos simultáneos con la misma clave: el segundo choca con la clave primaria y devuelve el del primero.
+      if (!esChoqueDeId(error)) throw error;
+      const ganador = await altaPrevia(this.prisma as any, tenantId, usuarioId, operacion, solicitudId, hash);
+      if (!ganador) throw new ConflictException(MENSAJE_CLAVE_REUTILIZADA);
+      return this.respuestaAlta(tenantId, ganador, rol) as Promise<T>;
+    }
+  }
+
+  /**
+   * Alta de cotización. Con `solicitudId` (A-02) un reintento de la misma persona con el mismo contenido devuelve la
+   * cotización ya creada antes de volver a validar; la misma clave con otro contenido responde 409. Las llamadas internas
+   * (regularización de ISV) no envían clave.
+   */
   async create(tenantId: string, usuarioId: string, dto: CreateCotizacionDto, alCrear?: (tx: any, cotizacion: any) => Promise<void>, rol?: string) {
+    const { solicitudId, ...contenido } = dto;
+    return this.altaIdempotente(tenantId, usuarioId, 'COTIZACION_CREAR', alCrear ? undefined : solicitudId, contenido, rol,
+      (clave) => this.crearCotizacion(tenantId, usuarioId, contenido, alCrear, rol, clave));
+  }
+
+  private async crearCotizacion(tenantId: string, usuarioId: string, dto: Omit<CreateCotizacionDto, 'solicitudId'>, alCrear: ((tx: any, cotizacion: any) => Promise<void>) | undefined, rol: string | undefined,
+    clave: { id: string; registrar: (tx: any, entidadId: string, datos: Record<string, unknown>) => Promise<void> } | null) {
     await exigirSinExencion(this.prisma, tenantId, usuarioId, 'CREAR', null, dto.detalles);
     if (!dto.detalles || dto.detalles.length === 0) {
       throw new BadRequestException('La cotización debe tener al menos un ítem');
@@ -154,6 +205,7 @@ export class CotizacionesService {
 
       const cotizacion = await tx.cotizacion.create({
         data: {
+          ...(clave ? { id: clave.id } : {}),
           tenantId,
           numeroCotizacion,
           clienteId: dto.clienteId || null,
@@ -203,6 +255,7 @@ export class CotizacionesService {
         },
       });
 
+      if (clave) await clave.registrar(tx, cotizacion.id, { numeroCotizacion });
       if (alCrear) await alCrear(tx, cotizacion);
       // Todo descuento lo autoriza un ADMIN con una acción explícita: guardar solo crea la solicitud pendiente.
       await actor(tx, tenantId, usuarioId);
@@ -393,7 +446,17 @@ export class CotizacionesService {
     });
   }
 
-  async duplicate(tenantId: string, usuarioId: string, id: string, rol?: string) {
+  /**
+   * Duplicar una cotización. Con `solicitudId` (A-02) un reintento devuelve la misma copia; la misma clave usada para
+   * duplicar otra cotización responde 409. Sin clave, cada llamada crea una copia nueva, como antes.
+   */
+  async duplicate(tenantId: string, usuarioId: string, id: string, rol?: string, solicitudId?: string) {
+    return this.altaIdempotente(tenantId, usuarioId, 'COTIZACION_DUPLICAR', solicitudId, { origenId: id }, rol,
+      (clave) => this.duplicarCotizacion(tenantId, usuarioId, id, rol, clave));
+  }
+
+  private async duplicarCotizacion(tenantId: string, usuarioId: string, id: string, rol: string | undefined,
+    clave: { id: string; registrar: (tx: any, entidadId: string, datos: Record<string, unknown>) => Promise<void> } | null) {
     const original = await this.prisma.cotizacion.findFirst({
       where: { id, tenantId },
       include: { detalles: true },
@@ -420,6 +483,7 @@ export class CotizacionesService {
 
       const duplicada = await tx.cotizacion.create({
         data: {
+          ...(clave ? { id: clave.id } : {}),
           tenantId,
           numeroCotizacion,
           clienteId: original.clienteId,
@@ -469,6 +533,7 @@ export class CotizacionesService {
         },
       });
 
+      if (clave) await clave.registrar(tx, duplicada.id, { numeroCotizacion, origenId: original.id });
       // La copia es un documento nuevo: su descuento necesita su propia autorización.
       await actor(tx, tenantId, usuarioId);
       const autorizacion = await sincronizarAutorizacion(tx, tenantId, { id: usuarioId }, duplicada);

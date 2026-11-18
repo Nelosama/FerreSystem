@@ -36,6 +36,8 @@ import { ClientePicker, type ClienteSeleccionable } from '../components/ClienteP
 import { filterCotizaciones } from '../utils/cotizacionesFilters';
 import { isvDocumentoCentavos } from '../utils/isv-documento';
 import { rtnValidoOVacio } from '../utils/rtn';
+import { newRequestId } from '../utils/requestId';
+import { cerrarSolicitudAlta, claveAlmacenAlta, conservarSolicitudTrasError, solicitudParaAlta } from '../utils/solicitudAlta';
 
 export const CotizacionesPage: React.FC = () => {
   const { tenant, user, isReadOnly } = useTenant();
@@ -262,11 +264,16 @@ export const CotizacionesPage: React.FC = () => {
 
   // Duplicar Cotización
   const handleDuplicar = async (cot: QuotationItem) => {
+    // A-02: repetir «Duplicar» tras un fallo de red devuelve la misma copia; tras una copia terminada, la siguiente es nueva.
+    const claveAlta = claveAlmacenAlta('COTIZACION_DUPLICAR', tenant?.id, user?.id, cot.id);
     try {
-      const res = await api.post(`/cotizaciones/${cot.id}/duplicar`);
+      const solicitudId = solicitudParaAlta(claveAlta, { origenId: cot.id }, newRequestId);
+      const res = await api.post(`/cotizaciones/${cot.id}/duplicar`, { solicitudId });
+      cerrarSolicitudAlta(claveAlta);
       await fetchCotizacionesYProductos();
       mostrarNotificacion(`Cotización #COT-${res.data.numeroCotizacion?.toString().padStart(4, '0')} creada exitosamente como duplicado en Borrador.`);
     } catch (err: any) {
+      if (!conservarSolicitudTrasError(err)) cerrarSolicitudAlta(claveAlta);
       console.error('Error al duplicar cotización:', err);
       mostrarNotificacion(err.response?.data?.message || 'Error al duplicar la cotización en el servidor', 'error');
     }
@@ -561,12 +568,18 @@ export const CotizacionesPage: React.FC = () => {
       })),
     };
 
+    // A-02: el alta lleva una clave de reintento. Si se pierde la respuesta (o falla el envío posterior), guardar de nuevo
+    // el mismo contenido devuelve la misma cotización; la clave se descarta solo cuando el alta termina o se rechaza.
+    const claveAlta = editingCotizacionId ? null : claveAlmacenAlta('COTIZACION_CREAR', tenant?.id, user?.id);
+    let altaHecha = false;
     try {
       if (editingCotizacionId) {
         await api.put(`/cotizaciones/${editingCotizacionId}`, payloadData);
         mostrarNotificacion(`Cotización actualizada exitosamente.`);
       } else {
-        const res = await api.post('/cotizaciones', payloadData);
+        const solicitudId = solicitudParaAlta(claveAlta!, payloadData, newRequestId);
+        const res = await api.post('/cotizaciones', { ...payloadData, solicitudId });
+        altaHecha = true;
         const numero = res.data.numeroCotizacion?.toString().padStart(4, '0');
         const aut: AutorizacionDescuento | undefined = res.data?.autorizacionDescuento;
         if (aut?.requerida && aut.estado !== 'APROBADA') {
@@ -578,11 +591,14 @@ export const CotizacionesPage: React.FC = () => {
           }
           mostrarNotificacion(`Cotización #COT-${numero} creada con éxito.`);
         }
+        cerrarSolicitudAlta(claveAlta!);
       }
 
       await fetchCotizacionesYProductos();
       setModalForm(false);
     } catch (err: any) {
+      // Si la cotización ya se creó y falló el envío posterior, la clave se conserva: reintentar no crea otra.
+      if (claveAlta && !altaHecha && !conservarSolicitudTrasError(err)) cerrarSolicitudAlta(claveAlta);
       console.error('Error al guardar cotización:', err);
       mostrarNotificacion(err.response?.data?.message || 'Error al guardar la cotización en el servidor', 'error');
     }

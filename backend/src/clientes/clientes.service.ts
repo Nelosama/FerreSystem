@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException, ServiceUnavailableException, Logger, BadRequestException, GoneException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException, Logger, BadRequestException, GoneException } from '@nestjs/common';
 import { rtnOpcional } from '../common/rtn';
+import { altaPrevia, esChoqueDeId, huellaAlta, idAlta, MENSAJE_CLAVE_REUTILIZADA, registrarAlta } from '../common/idempotencia-alta';
 import { audit, decimal, lockTenant } from '../operaciones/ledger';
 import { PrismaService } from '../prisma/prisma.service';
+import type { Prisma } from '@prisma/client';
 import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
 import { UpdateCreditoClienteDto } from './dto/cliente.dto';
 import { CreateAbonoClienteDto } from './dto/abono.dto';
@@ -73,20 +75,45 @@ export class ClientesService {
     return cliente;
   }
 
-  async create(tenantId: string, dto: CreateClienteDto) {
+  /**
+   * Alta de cliente. Con `solicitudId` (A-02) un reintento de la misma persona con el mismo contenido devuelve el
+   * cliente ya creado, también después de una regla de validación nueva; la misma clave con otros datos responde 409.
+   * Sin `solicitudId` se comporta como antes.
+   */
+  async create(tenantId: string, dto: CreateClienteDto, usuarioId?: string) {
+    const { solicitudId, ...contenido } = dto;
+    const clave = solicitudId ? { solicitudId, hash: huellaAlta('CLIENTE_CREAR', contenido), usuarioId: usuarioId ?? '' } : null;
+    if (clave && !clave.usuarioId) throw new BadRequestException('La clave de solicitud requiere un usuario autenticado');
+    const reintento = async () => {
+      const previo = clave && await altaPrevia(this.prisma as any, tenantId, clave.usuarioId, 'CLIENTE_CREAR', clave.solicitudId, clave.hash);
+      return previo ? this.prisma.cliente.findFirst({ where: { id: previo, tenantId } }) : null;
+    };
+    const repetido = await reintento();
+    if (repetido) return repetido;
     try {
-      return await this.prisma.cliente.create({
-        data: {
-          tenantId,
-          nombre: dto.nombre.trim(),
-          rtn: rtnOpcional(dto.rtn, 'RTN del cliente'),
-          telefono: dto.telefono?.trim() || null,
-          email: dto.email?.trim() || null,
-          direccion: dto.direccion?.trim() || null,
-          tipo: dto.tipo || 'CONSUMIDOR_FINAL',
-        },
+      const data: Prisma.ClienteUncheckedCreateInput = {
+        ...(clave ? { id: idAlta(tenantId, 'CLIENTE_CREAR', clave.solicitudId) } : {}),
+        tenantId,
+        nombre: dto.nombre.trim(),
+        rtn: rtnOpcional(dto.rtn, 'RTN del cliente'),
+        telefono: dto.telefono?.trim() || null,
+        email: dto.email?.trim() || null,
+        direccion: dto.direccion?.trim() || null,
+        tipo: dto.tipo || 'CONSUMIDOR_FINAL',
+      };
+      if (!clave) return await this.prisma.cliente.create({ data });
+      return await this.prisma.$transaction(async (tx) => {
+        const cliente = await tx.cliente.create({ data });
+        await registrarAlta(tx as any, tenantId, clave.usuarioId, 'CLIENTE_CREAR', cliente.id, clave.solicitudId, clave.hash, { numeroCliente: cliente.numeroCliente });
+        return cliente;
       });
     } catch (error: any) {
+      // Dos envíos simultáneos con la misma clave: el segundo choca con la clave primaria y devuelve el del primero.
+      if (clave && esChoqueDeId(error)) {
+        const previo = await reintento();
+        if (previo) return previo;
+        throw new ConflictException(MENSAJE_CLAVE_REUTILIZADA);
+      }
       const target = JSON.stringify(error?.meta?.target || '');
       const column = String(error?.meta?.column || '');
       const databaseError = String(error?.meta?.database_error || '');
