@@ -4,7 +4,8 @@ on:
     branches: [ main, master ]
   pull_request:
     # También valida las correcciones apiladas de #202 sin escribir en su rama ni fusionarla.
-    branches: [ main, master, 'claude/pos-sincronizacion-precios' ]
+    # A-02 (2026-11-18): PR apilado sobre #250 (base claude/jowa-etapa4-rtn); retirar cuando #250 esté en main.
+    branches: [ main, master, 'claude/pos-sincronizacion-precios', 'claude/jowa-etapa4-rtn' ]
 permissions:
   contents: read
 concurrency:

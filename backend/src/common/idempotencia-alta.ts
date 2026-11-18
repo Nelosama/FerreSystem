@@ -1,6 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { idSolicitud, query, validarSolicitud, type Tx } from '../operaciones/ledger';
+import { withSupportIdentity } from './support-context';
 
 /**
  * A-02 (evaluación de producción del 2026-11-16): altas idempotentes de clientes y cotizaciones.
@@ -38,10 +39,10 @@ export function huellaAlta(operacion: OperacionAlta, contenido: Record<string, u
   return createHash('sha256').update(jsonEstable({ operacion, contenido: resto })).digest('hex');
 }
 
-/** Registra la huella del alta en la misma transacción que crea el registro. */
+/** Registra la huella del alta en la misma transacción que crea el registro (con la identidad de soporte, como `audit`). */
 export async function registrarAlta(tx: Tx, tenantId: string, usuarioId: string, operacion: OperacionAlta, entidadId: string, solicitudId: string, solicitudHash: string, datos: Record<string, unknown> = {}) {
   await query(tx, 'INSERT INTO auditoria_operaciones (id,tenant_id,usuario_id,operacion,entidad_id,datos) VALUES (gen_random_uuid()::text,$1,$2,$3,$4,$5::jsonb) RETURNING id',
-    tenantId, usuarioId, operacion, entidadId, JSON.stringify({ ...datos, solicitudId, solicitudHash }));
+    tenantId, usuarioId, operacion, entidadId, JSON.stringify(withSupportIdentity({ ...datos, solicitudId, solicitudHash })));
 }
 
 /**
