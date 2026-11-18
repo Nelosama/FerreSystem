@@ -10,6 +10,7 @@ import { Button } from '../components/Button';
 import { errorColorHex } from '../utils/colorHex';
 import { AvisoColorMarca } from '../components/AvisoColorMarca';
 import { FORMATOS_IMPRESION, type FormatoImpresion } from '../utils/formatoImpresion';
+import { revisarRtn } from '../utils/rtn';
 import { Palette, Building2, Check, RefreshCw, Store, Eye, Languages, Coins, Receipt, Users, Layers } from 'lucide-react';
 
 const PRESET_COLORS = [
@@ -49,6 +50,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
   const [direccion, setDireccion] = useState(negocio.direccion || '');
   const [telefono, setTelefono] = useState(negocio.telefono || '');
   const [email, setEmail] = useState(negocio.email || '');
+  const [rtnEmisor, setRtnEmisor] = useState(negocio.rtn || '');
   const dirty = React.useRef(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -78,6 +80,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
       setDireccion(negocio.direccion || '');
       setTelefono(negocio.telefono || '');
       setEmail(negocio.email || '');
+      setRtnEmisor(negocio.rtn || '');
     }
   }, [datos]);
 
@@ -86,9 +89,11 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
 
     const updatedMoneda = { simbolo: monedaSimbolo, codigo: monedaCodigo };
     const updatedImpuesto = { nombre: impuestoNombre, tasa: Number(impuestoTasa) };
+    const rtn = revisarRtn(rtnEmisor);
 
     if (saving) return;
     if (errorColor) { setSaveError(errorColor); return; }
+    if (!rtn.valido) { setSaveError(t('settings.invalid_rtn')); return; }
     setSaving(true); setSaveError(''); setGuardadoExitoso(false);
     try {
       const { data } = await api.put(`/admin/tenants/${negocioId}/settings`, {
@@ -98,7 +103,7 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
         email,
         colorPrimario: color,
         modoNavegacion,
-        configuracion: { modoGuia, idioma, rubro, formatoImpresion, moneda: updatedMoneda, impuesto: updatedImpuesto },
+        configuracion: { modoGuia, idioma, rubro, formatoImpresion, rtn: rtn.digitos, moneda: updatedMoneda, impuesto: updatedImpuesto },
       });
 
       dirty.current = false;
@@ -192,6 +197,10 @@ export const ConfiguracionPage: React.FC<{ negocioId: string }> = ({ negocioId }
               <label className="form-label" htmlFor="company-address">{t('settings.address')}</label><input id="company-address" className="form-input" value={direccion} onChange={event => setDireccion(event.target.value)} />
               <label className="form-label" htmlFor="company-phone">{t('settings.phone')}</label><input id="company-phone" type="tel" className="form-input" value={telefono} onChange={event => setTelefono(event.target.value)} />
               <label className="form-label" htmlFor="company-email">{t('settings.email')}</label><input id="company-email" type="email" className="form-input" value={email} onChange={event => setEmail(event.target.value)} />
+              <label className="form-label" htmlFor="company-rtn">{t('settings.rtn_emisor')}</label>
+              <input id="company-rtn" className="form-input" value={rtnEmisor} onChange={event => setRtnEmisor(event.target.value)} aria-invalid={!revisarRtn(rtnEmisor).valido} aria-describedby="company-rtn-help" />
+              <span id="company-rtn-help" className="settings-section-help">{t('settings.rtn_help')}</span>
+              {!revisarRtn(rtnEmisor).valido && <p role="alert">{t('settings.invalid_rtn')}</p>}
             </details>
             {/* Selector de Idioma (I18n ES / EN) */}
             <div className="form-group" style={{ marginTop: '16px' }}>

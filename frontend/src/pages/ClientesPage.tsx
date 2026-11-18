@@ -4,6 +4,7 @@ import { api } from '../utils/api';
 import { useI18n } from '../context/I18nContext';
 import { formatNumeroCliente } from '../utils/numeroCliente';
 import { leerPlazoCredito } from '../utils/plazoCredito';
+import { rtnValidoOVacio } from '../utils/rtn';
 import {
   Users,
   Search,
@@ -195,11 +196,10 @@ export const ClientesPage: React.FC = () => {
       }
     }
 
-    if (formRtn.trim()) {
-      const cleanRtn = formRtn.replace(/\D/g, '');
-      if (cleanRtn.length !== 14) {
-        errors.rtn = t('validation.invalid_rtn_length');
-      }
+    // Etapa 4: misma regla que el servidor. Antes se quitaba cualquier carácter que no fuera dígito, así que «0801199900000A1»
+    // pasaba en pantalla y el servidor lo rechazaba; ahora solo se admiten espacios y guiones como separadores.
+    if (!rtnValidoOVacio(formRtn)) {
+      errors.rtn = t('validation.rtn_formato');
     }
 
     setFieldErrors(errors);

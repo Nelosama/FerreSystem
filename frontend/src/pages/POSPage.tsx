@@ -15,6 +15,7 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { aplicarPreciosVigentes } from '../utils/preciosCarrito';
 import { MOTIVO_EXCEPCION_MAX, MOTIVO_EXCEPCION_MIN, motivoExcepcionValido, puedeExcepcionPrecio } from '../utils/excepcionPrecio';
 import { readRecovery, saveDraft, type PendingSale, type CartItem } from '../utils/posRecovery';
+import { rtnValidoOVacio } from '../utils/rtn';
 import { useI18n } from '../context/I18nContext';
 import {
   Search,
@@ -193,7 +194,8 @@ export const POSPage: React.FC = () => {
   aplicarCatalogoRef.current = aplicarCatalogo;
   // Cliente plegado: la mayoría de ventas son a consumidor final. Crédito exige un cliente registrado, así que se abre.
   const [clienteAbierto, setClienteAbierto] = useState(false);
-  const clienteVisible = clienteAbierto || (metodoPago === 'CREDITO' && !clienteId);
+  // Un RTN mal escrito mantiene visible el campo y su aviso hasta corregirlo (etapa 4).
+  const clienteVisible = clienteAbierto || (metodoPago === 'CREDITO' && !clienteId) || !rtnValidoOVacio(clienteRtn);
   const buscarRef = useRef<HTMLInputElement>(null);
   const cobrarRef = useRef<HTMLButtonElement>(null);
   const pieTicketRef = useRef<HTMLDivElement>(null);
@@ -603,6 +605,10 @@ export const POSPage: React.FC = () => {
     if (!ventaPendiente && metodoPago === 'CREDITO' && !clienteId) {
       setErrorText('Seleccione un cliente registrado para vender a crédito'); return;
     }
+    // Etapa 4: RTN vacío o de 14 dígitos. Una venta pendiente se reenvía idéntica (el servidor la reconoce por su solicitud).
+    if (!ventaPendiente && !rtnValidoOVacio(clienteRtn)) {
+      setErrorText(t(clienteId ? 'validation.rtn_cliente_registrado' : 'validation.rtn_formato')); return;
+    }
     // Usabilidad: si el cajero escribió el efectivo recibido y no cubre el total, no se cobra hasta corregirlo.
     // El campo sigue siendo opcional (vacío no bloquea) y el importe no se envía al servidor.
     if (!ventaPendiente && metodoPago === 'EFECTIVO' && vuelto.estado === 'FALTA') {
@@ -951,8 +957,12 @@ export const POSPage: React.FC = () => {
                     className="form-input"
                     style={{ padding: '6px 10px', fontSize: '13px', marginTop: '6px', minHeight: 40 }}
                     aria-label={t('shell.pos.client_rtn_label')}
+                    aria-invalid={!rtnValidoOVacio(clienteRtn)}
+                    aria-describedby={!rtnValidoOVacio(clienteRtn) ? 'pos-rtn-aviso' : undefined}
                     placeholder={t('pos.rtn_placeholder')}
                   />
+                  {!rtnValidoOVacio(clienteRtn) && <small id="pos-rtn-aviso" role="alert" data-testid="pos-rtn-aviso" style={{ color: 'var(--color-danger, #b91c1c)', display: 'block', marginTop: 4 }}>
+                    {t(clienteId ? 'validation.rtn_cliente_registrado' : 'validation.rtn_formato')}</small>}
                 </div>
 
                 {!edicionBloqueada&&!clienteId&&<ClientePicker onSelect={(c:ClienteSeleccionable)=>{setClienteId(c.id);setClienteNombre(c.nombre);setClienteRtn(c.rtn||'');setClienteAbierto(false);}}/>}

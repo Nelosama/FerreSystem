@@ -998,6 +998,9 @@
     }
   },
   "settings": {
+    "rtn_emisor": "Business RTN (optional)",
+    "rtn_help": "14 digits; spaces or hyphens are allowed. Leave it empty if it does not apply.",
+    "invalid_rtn": "Business RTN: enter exactly 14 digits (spaces or hyphens allowed) or leave it empty.",
     "navigation_mode": "Navigation mode",
     "navigation_sidebar": "SIDEBAR · Side menu",
     "navigation_topnav": "TOPNAV · Top menu",
@@ -1241,6 +1244,8 @@
     "required_field": "This field is required.",
     "invalid_email": "Enter a valid email address.",
     "invalid_rtn_length": "The Honduran RTN must contain exactly 14 digits.",
+    "rtn_formato": "RTN: enter exactly 14 digits (spaces or hyphens allowed) or leave it empty.",
+    "rtn_cliente_registrado": "The selected customer's RTN does not have 14 digits. Fix it in Customers or remove the customer from the sale.",
     "min_length": "Must contain at least {min} characters.",
     "number_range": "The value must be between {min} and {max}.",
     "form_has_errors": "Review the highlighted fields before continuing.",

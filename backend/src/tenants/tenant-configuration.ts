@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { rtnOpcional } from '../common/rtn';
 
 const options: Record<string, readonly string[]> = {
   idioma: ['es', 'en'],
@@ -26,8 +27,8 @@ export function validateTenantConfiguration(value: unknown): asserts value is Re
     } else if (key === 'modoGuia') {
       if (typeof field !== 'boolean') throw new BadRequestException('Modo Guía inválido');
     } else if (key === 'rtn') {
-      // RTN del emisor (opcional): 14 dígitos, o null para quitarlo. Se imprime en el comprobante.
-      if (field !== null && (typeof field !== 'string' || !/^\d{14}$/.test(field))) throw new BadRequestException('RTN inválido: debe tener 14 dígitos');
+      // RTN del emisor: misma regla que el RTN del cliente; se admite vacío, espacios o guiones y se guardan solo dígitos.
+      rtnOpcional(field, 'RTN del emisor');
     } else if (key === 'moneda') {
       if (!field || typeof field !== 'object' || Object.keys(field).some(k => !['simbolo', 'codigo'].includes(k)) || field.simbolo !== 'L.' || field.codigo !== 'HNL') throw new BadRequestException('Solo se admite HNL (L.); no hay conversión monetaria');
     } else if (key === 'impuesto') {
@@ -43,7 +44,10 @@ export function normalizeTenantConfiguration(value: unknown) {
   return {
     ...Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, options[key].includes(configuration[key] as string) ? configuration[key] : fallback])),
     modoGuia: configuration.modoGuia === true,
-    rtn: typeof configuration.rtn === 'string' && /^\d{14}$/.test(configuration.rtn) ? configuration.rtn : null,
+    rtn: (() => {
+      try { return rtnOpcional(configuration.rtn, 'RTN del emisor'); }
+      catch { return null; }
+    })(),
     moneda: { simbolo: 'L.', codigo: 'HNL' }, impuesto: { nombre: 'ISV', tasa: 15 },
   };
 }
