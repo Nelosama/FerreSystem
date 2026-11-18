@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ServiceUnavailableException, Logger, BadRequestException, GoneException } from '@nestjs/common';
+import { rtnOpcional } from '../common/rtn';
 import { audit, decimal, lockTenant } from '../operaciones/ledger';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClienteDto, UpdateClienteDto } from './dto/create-cliente.dto';
@@ -78,7 +79,7 @@ export class ClientesService {
         data: {
           tenantId,
           nombre: dto.nombre.trim(),
-          rtn: dto.rtn?.trim() || null,
+          rtn: rtnOpcional(dto.rtn, 'RTN del cliente'),
           telefono: dto.telefono?.trim() || null,
           email: dto.email?.trim() || null,
           direccion: dto.direccion?.trim() || null,
@@ -109,7 +110,7 @@ export class ClientesService {
       where: { id, tenantId },
       data: {
         ...(dto.nombre !== undefined ? { nombre: dto.nombre.trim() } : {}),
-        ...(dto.rtn !== undefined ? { rtn: dto.rtn?.trim() || null } : {}),
+        ...(dto.rtn !== undefined ? { rtn: rtnOpcional(dto.rtn, 'RTN del cliente') } : {}),
         ...(dto.telefono !== undefined ? { telefono: dto.telefono?.trim() || null } : {}),
         ...(dto.email !== undefined ? { email: dto.email?.trim() || null } : {}),
         ...(dto.direccion !== undefined ? { direccion: dto.direccion?.trim() || null } : {}),

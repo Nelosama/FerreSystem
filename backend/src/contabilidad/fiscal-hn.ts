@@ -31,13 +31,8 @@ export const TIPOS_CON_REFERENCIA = new Set(['06', '07']);
 
 const RE_NUMERO = /^(\d{3})-(\d{3})-(\d{2})-(\d{8})$/;
 
-export function normalizarRtn(valor: unknown, etiqueta = 'RTN'): string {
-  if (typeof valor !== 'string') throw new BadRequestException(`${etiqueta}: valor requerido`);
-  // Se aceptan separadores visuales (espacios o guiones); el valor guardado son solo los 14 dígitos.
-  const limpio = valor.trim().replace(/[\s-]/g, '');
-  if (!/^\d{14}$/.test(limpio)) throw new BadRequestException(`${etiqueta}: debe tener 14 dígitos`);
-  return limpio;
-}
+// El RTN se valida con la regla común de la aplicación (common/rtn.ts): 14 dígitos, separadores visuales admitidos.
+export { normalizarRtn } from '../common/rtn';
 
 export interface NumeroDocumento { establecimiento: string; puntoEmision: string; tipoDocumento: string; correlativo: number }
 

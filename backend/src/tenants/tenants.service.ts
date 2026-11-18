@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { enabledTenantModules } from '../common/tenant-modules';
+import { rtnOpcional } from '../common/rtn';
 import { normalizeTenantConfiguration, retirarClavesVisuales, validateTenantConfiguration } from './tenant-configuration';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -54,14 +55,27 @@ export class TenantsService {
     // Auditoría 12/10 (P3): un color inválido no se guarda; antes la vista previa caía a negro sin aviso.
     if (data.colorPrimario !== undefined && !/^#[0-9A-Fa-f]{6}$/.test(data.colorPrimario)) throw new BadRequestException('Color de marca inválido: use el formato #RRGGBB');
     const configuracion = data.configuracion;
+    let configuracionFinal: Record<string, any> | undefined;
     if (configuracion !== undefined) {
       validateTenantConfiguration(configuracion);
+      const actual = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+      const configuracionActual = retirarClavesVisuales(actual?.configuracion as Record<string, any> | null ?? {});
+      configuracionFinal = Object.keys(configuracion).length
+        ? { ...configuracionActual, ...retirarClavesVisuales(configuracion) }
+        : {};
+      if (Object.prototype.hasOwnProperty.call(configuracionFinal, 'rtn')) {
+        try {
+          configuracionFinal.rtn = rtnOpcional(configuracionFinal.rtn, 'RTN del emisor');
+        } catch {
+          // Elimina valores históricos inválidos al guardar otra configuración; nunca se vuelven a persistir.
+          configuracionFinal.rtn = null;
+        }
+      }
       if (configuracion.modoGuia !== undefined && !opciones.esSuperAdmin) throw new ForbiddenException('Solo Super Admin puede configurar el Modo Guía');
       if (configuracion.idioma !== undefined && !opciones.esSuperAdmin) throw new ForbiddenException('El idioma del negocio solo lo configura el Super Admin');
       // FS-10: el rubro del negocio define plantillas y catálogo; solo lo cambia el Super Admin (ruta de soporte).
       // Reenviar el valor vigente sigue permitido, así un guardado de apariencia no falla.
       if (configuracion.rubro !== undefined) {
-        const actual = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
         const rubroActual = (actual?.configuracion as Record<string, unknown> | null)?.rubro ?? 'FERRETERIA';
         if (configuracion.rubro !== rubroActual && !opciones.esSuperAdmin) throw new ForbiddenException('El rubro del negocio solo lo configura el Super Admin');
       }
@@ -69,7 +83,7 @@ export class TenantsService {
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
-        ...(configuracion !== undefined && { configuracion: Object.keys(configuracion).length ? { ...retirarClavesVisuales((await this.prisma.tenant.findUnique({ where: { id: tenantId } }))?.configuracion as Record<string, any> ?? {}), ...retirarClavesVisuales(configuracion) } : {} }),
+        ...(configuracion !== undefined && { configuracion: configuracionFinal }),
         ...(data.modoNavegacion && { modoNavegacion: data.modoNavegacion }),
         ...(data.nombreComercial && { nombreComercial: data.nombreComercial }),
         ...(data.direccion !== undefined && { direccion: data.direccion }),

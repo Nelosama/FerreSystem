@@ -290,3 +290,40 @@ test('descartar una respuesta perdida recupera el comprobante de la venta confir
   await page.getByRole('button', { name: /Nueva venta/i }).click();
   await expect.poll(() => page.evaluate(key => localStorage.getItem(key), pendingKey)).toBeNull();
 });
+
+// Etapa 4 (decisión del dueño del 2026-11-12): RTN vacío o de 14 dígitos. Mal escrito, aviso junto al campo y no se cobra
+// hasta corregirlo; con espacios o guiones se acepta (el servidor guarda solo los dígitos, ver rtn-etapa4.postgres.integration.ts).
+test.describe('RTN del cliente en el POS (simulado)', () => {
+  test('RTN mal escrito: aviso visible y no se envía la venta; corregido con guiones, se cobra', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    await page.getByRole('button', { name: 'Cambiar cliente' }).click();
+    const rtn = page.getByLabel('RTN del cliente');
+    await rtn.fill('0801-1999');
+    const aviso = page.getByTestId('pos-rtn-aviso');
+    await expect(aviso).toContainText('RTN: escriba exactamente 14 dígitos');
+    await expect(rtn).toHaveAttribute('aria-invalid', 'true');
+    // Plegar la sección no oculta el aviso mientras el RTN siga mal.
+    await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+    await expect(page.getByRole('alert').filter({ hasText: 'RTN: escriba exactamente 14 dígitos' }).first()).toBeVisible();
+    expect(sim.ventas).toEqual([]);
+
+    await rtn.fill('0801-1999-000001');
+    await expect(aviso).toHaveCount(0);
+    await expect(rtn).toHaveAttribute('aria-invalid', 'false');
+    await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(sim.ventas[0].clienteRtn).toBe('0801-1999-000001');
+  });
+
+  test('sin RTN la venta sigue y no lleva RTN', async ({ page, sim }) => {
+    await abrirPos(page);
+    await page.getByText('Taladro').first().click();
+    await page.getByRole('button', { name: 'Cambiar cliente' }).click();
+    await page.getByLabel('RTN del cliente').fill('   ');
+    await expect(page.getByTestId('pos-rtn-aviso')).toHaveCount(0);
+    await page.getByRole('button', { name: /Procesar Venta/ }).last().click();
+    await expect.poll(() => sim.ventas.length).toBe(1);
+    expect(sim.ventas[0].clienteRtn ?? '').toMatch(/^\s*$/);
+  });
+});

@@ -963,6 +963,9 @@
     }
   },
   "settings": {
+    "rtn_emisor": "RTN del negocio (opcional)",
+    "rtn_help": "14 dígitos; puede escribirlo con espacios o guiones. Déjelo vacío si no aplica.",
+    "invalid_rtn": "RTN del negocio: escriba exactamente 14 dígitos (puede usar espacios o guiones) o deje el campo vacío.",
     "navigation_mode": "Modo de navegación",
     "navigation_sidebar": "SIDEBAR · Menú lateral",
     "navigation_topnav": "TOPNAV · Menú superior",
@@ -1206,6 +1209,8 @@
     "required_field": "Este campo es obligatorio.",
     "invalid_email": "Ingrese un correo electrónico válido.",
     "invalid_rtn_length": "El RTN de Honduras debe contener exactamente 14 dígitos numéricos.",
+    "rtn_formato": "RTN: escriba exactamente 14 dígitos (puede usar espacios o guiones) o deje el campo vacío.",
+    "rtn_cliente_registrado": "El RTN del cliente seleccionado no tiene 14 dígitos. Corríjalo en Clientes o quite el cliente de la venta.",
     "min_length": "Debe contener al menos {min} caracteres.",
     "number_range": "El valor debe estar entre {min} y {max}.",
     "form_has_errors": "Revise los campos marcados antes de continuar.",

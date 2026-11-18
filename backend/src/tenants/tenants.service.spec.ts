@@ -74,6 +74,17 @@ describe('Persistencia de configuración por empresa', () => {
     expect(await service.getTenantSettings('A')).toMatchObject({ moneda:{ codigo:'HNL', simbolo:'L.' }, impuesto:{ nombre:'ISV', tasa:15 } });
     expect(prisma.tenant.update).not.toHaveBeenCalled();
   });
+  it('rechaza RTN de emisor inválido antes de persistirlo y normaliza separadores al guardar', async () => {
+    await expect(service.updateTenantBranding('A', { configuracion: { rtn: '0801-9999-00000A' } })).rejects.toThrow('RTN del emisor');
+    expect(prisma.tenant.update).not.toHaveBeenCalled();
+    await service.updateTenantBranding('A', { configuracion: { rtn: '0801-9999-000000' } });
+    expect(records.get('A').configuracion.rtn).toBe('08019999000000');
+  });
+  it('elimina RTN heredado inválido al guardar configuración sin volver a persistirlo', async () => {
+    records.get('A').configuracion = { rubro: 'FERRETERIA', rtn: 'RTN-INVÁLIDO' };
+    await service.updateTenantBranding('A', { configuracion: { idioma: 'es' } }, { esSuperAdmin: true });
+    expect(records.get('A').configuracion.rtn).toBeNull();
+  });
   it('rechaza modo de navegación desconocido', async () => {
     await expect(service.updateTenantBranding('A', { modoNavegacion: 'unknown' as any })).rejects.toThrow();
     expect(prisma.tenant.update).not.toHaveBeenCalled();

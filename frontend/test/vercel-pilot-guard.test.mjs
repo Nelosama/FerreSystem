@@ -65,6 +65,15 @@ for (const branch of ['claude/persistencia-retencion-20261104', 'codex/pwa-aisla
   });
 }
 
+// Etapa 4 (RTN): la rama no genera vistas previas; el bloqueo es por nombre exacto.
+test('etapa 4 sin despliegue: claude/jowa-etapa4-rtn bloqueada por configuración y por ignoreCommand', () => {
+  const branch = 'claude/jowa-etapa4-rtn';
+  assert.equal(configuration.git.deploymentEnabled[branch], false);
+  const ignorar = (ref) => spawnSync('sh', ['-c', configuration.ignoreCommand], { cwd: frontendDir, env: { VERCEL_GIT_COMMIT_REF: ref }, encoding: 'utf8' }).status;
+  assert.equal(ignorar(branch), 0);
+  assert.equal(ignorar(`${branch}-extra`), 1);
+});
+
 // La rama de la evaluación de producción también queda desactivada en la configuración, no solo en ignoreCommand.
 test('evaluación sin despliegue: claude/jowa-production-readiness-dq4no2 desactivada en vercel.json', () => {
   assert.equal(configuration.git.deploymentEnabled['claude/jowa-production-readiness-dq4no2'], false);
