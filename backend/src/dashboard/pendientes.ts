@@ -10,6 +10,8 @@ import { moduleEnabled } from '../common/tenant-modules';
 export type ClavePendiente =
   | 'contingencia_revision'
   | 'descuentos_por_autorizar'
+  | 'autorizaciones_caja'
+  | 'diferencias_caja'
   | 'precios_pendientes'
   | 'entregas_pendientes'
   | 'cotizaciones_vencen_hoy'
@@ -33,6 +35,10 @@ export const REGLAS_PENDIENTES: readonly ReglaPendiente[] = [
   { clave: 'contingencia_revision', ruta: '/contingencia-admin', roles: ['ADMIN'], modulo: 'pos' },
   // POST /autorizaciones/:id/aprobar|rechazar: solo ADMIN; las solicitudes se revisan en /cotizaciones.
   { clave: 'descuentos_por_autorizar', ruta: '/cotizaciones', roles: ['ADMIN'], modulo: 'cotizaciones' },
+  // Etapa 3: aperturas y cierres de caja que esperan la decisión de un ADMIN, y cierres con diferencia sin revisar
+  // (≥ umbral de la tienda). Los ve cada ADMIN hasta que uno los resuelve. Se atienden en /arqueo-caja.
+  { clave: 'autorizaciones_caja', ruta: '/arqueo-caja', roles: ['ADMIN'], modulo: 'arqueo_caja' },
+  { clave: 'diferencias_caja', ruta: '/arqueo-caja', roles: ['ADMIN'], modulo: 'arqueo_caja' },
   // PATCH /productos/:id/precios y /precios: solo ADMIN; la pantalla lee /productos (módulo inventario).
   { clave: 'precios_pendientes', ruta: '/precios', roles: ['ADMIN'], modulo: 'inventario', permiso: 'inventario.editar' },
   // GET /entregas/pendientes: ADMIN y BODEGUERO ven todas; CAJERO, las suyas.

@@ -9,6 +9,7 @@ case "$VERCEL_GIT_COMMIT_REF" in
   codex/pwa-aislamiento-20261103) exit 0 ;;
   claude/festive-lovelace-nfqn88) exit 0 ;;
   claude/zealous-hypatia-n3fjte) exit 0 ;;
+  claude/affectionate-cori-pb4pv2) exit 0 ;;
   claude/jowa-etapa4-rtn) exit 0 ;;
   claude/jowa-production-readiness-dq4no2) exit 0 ;;
   claude/persistencia-retencion-20261104|claude/compassionate-mayer-73jljd|codex/pwa-integridad-20261103|main|fix/fase3-idempotencia-20261030|claude/sprint-contingencia-seguridad-ux-20261030|claude/prod-matriz-fiscal-20261030|claude/prod-auditoria-infra-20261030|claude/sharp-fermi-ryjhpl|claude/sprint-seguimiento-20261030|claude/focused-hawking-52oiqz|claude/sweet-ritchie-wrwsbo) exit 0 ;;

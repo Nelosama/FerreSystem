@@ -9,7 +9,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { SinCostosParaBodeguero } from '../common/interceptors/sin-costos-bodeguero.interceptor';
-import { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, EntregarVentaDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto } from './operaciones.dto';
+import { AbrirCajaDto, AjusteDto, CerrarCajaDto, CompraDto, ConciliacionBancariaDto, DevolucionDto, EntregarVentaDto, MovimientoCajaDto, PagoDto, ProveedorDto, ProductoProveedorDto, RecepcionDto, DecisionDevolucionDto, ConteoCajaDto, ConfiguracionCajaDto } from './operaciones.dto';
 @Controller('operaciones')
 @UseGuards(JwtAuthGuard,TenantGuard,RolesGuard)
 @Roles('ADMIN','CAJERO','BODEGUERO','VENDEDOR')
@@ -33,6 +33,16 @@ export class OperacionesController {
  @Get('caja') @Roles('ADMIN','CAJERO','VENDEDOR') caja(@TenantId() t:string,@CurrentUser('sub') u:string){return this.service.caja(t,u);}
  @RequiredModule('arqueo_caja')
  @Get('caja/cierres') @Roles('ADMIN') cierresCaja(@TenantId() t:string,@CurrentUser('sub') u:string,@Query('estado') estado?:string,@Query('usuarioId') usuarioId?:string,@Query('desde') desde?:string,@Query('hasta') hasta?:string){return this.service.cierresCaja(t,u,{estado,usuarioId,desde,hasta});}
+ @RequiredModule('arqueo_caja')
+ @Get('caja/apertura') @Roles('ADMIN','CAJERO','VENDEDOR') aperturaCaja(@TenantId() t:string,@CurrentUser('sub') u:string){return this.service.aperturaCaja(t,u);}
+ @RequiredModule('arqueo_caja')
+ @Get('caja/configuracion') @Roles('ADMIN') configuracionCaja(@TenantId() t:string,@CurrentUser('sub') u:string){return this.service.configuracionCaja(t,u);}
+ @RequiredModule('arqueo_caja')
+ @Put('caja/configuracion') @Roles('ADMIN') guardarConfiguracionCaja(@TenantId() t:string,@CurrentUser('sub') u:string,@Body() dto:ConfiguracionCajaDto){return this.service.guardarConfiguracionCaja(t,u,dto);}
+ @RequiredModule('arqueo_caja')
+ @Post('caja/:id/conteos') @Roles('ADMIN','CAJERO','VENDEDOR') conteoCaja(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string,@Body() dto:ConteoCajaDto){return this.service.conteoCaja(t,u,id,dto);}
+ @RequiredModule('arqueo_caja')
+ @Post('caja/:id/revisar-diferencia') @Roles('ADMIN') revisarDiferenciaCaja(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.revisarDiferenciaCaja(t,u,id);}
  @RequiredModule('arqueo_caja')
  @Get('caja/:id') @Roles('ADMIN','CAJERO','VENDEDOR') cajaDetalle(@TenantId() t:string,@CurrentUser('sub') u:string,@Param('id') id:string){return this.service.cajaDetalle(t,u,id);}
  @RequiredModule('arqueo_caja')

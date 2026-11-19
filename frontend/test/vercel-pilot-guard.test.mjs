@@ -79,3 +79,14 @@ test('evaluación sin despliegue: claude/jowa-production-readiness-dq4no2 desact
   assert.equal(configuration.git.deploymentEnabled['claude/jowa-production-readiness-dq4no2'], false);
   assert.equal(configuration.git.deploymentEnabled['claude/jowa-production-readiness-dq4no2-extra'], undefined);
 });
+
+// Auditoría de #248: la rama de la etapa 3 (caja) generaba vistas previas automáticas. Bloqueada por configuración y por
+// ignoreCommand; una variante con sufijo no coincide (el bloqueo es por nombre exacto).
+test('etapa 3 sin despliegue: claude/affectionate-cori-pb4pv2 bloqueada por configuración y por ignoreCommand', () => {
+  const branch = 'claude/affectionate-cori-pb4pv2';
+  assert.equal(configuration.git.deploymentEnabled[branch], false);
+  const ignorar = (ref) => spawnSync('sh', ['-c', configuration.ignoreCommand], { cwd: frontendDir, env: { VERCEL_GIT_COMMIT_REF: ref }, encoding: 'utf8' }).status;
+  assert.equal(ignorar(branch), 0);
+  assert.equal(ignorar(`${branch}-extra`), 1);
+  assert.equal(configuration.git.deploymentEnabled[`${branch}-extra`], undefined);
+});

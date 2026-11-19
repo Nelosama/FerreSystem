@@ -47,6 +47,8 @@ const etiquetaMetodo: Record<string, string> = { EFECTIVO: 'Efectivo', TARJETA: 
 const PRESENTACION: Record<ClavePendiente, { icono: React.ReactNode; titulo: string; detalle: string }> = {
   contingencia_revision: { icono: <ShieldAlert size={18} aria-hidden="true" />, titulo: 'shell.home.review', detalle: 'shell.home.review_detail' },
   descuentos_por_autorizar: { icono: <BadgePercent size={18} aria-hidden="true" />, titulo: 'shell.home.discounts_pending', detalle: 'shell.home.discounts_pending_detail' },
+  autorizaciones_caja: { icono: <WalletCards size={18} aria-hidden="true" />, titulo: 'shell.home.cash_requests', detalle: 'shell.home.cash_requests_detail' },
+  diferencias_caja: { icono: <AlertTriangle size={18} aria-hidden="true" />, titulo: 'shell.home.cash_differences', detalle: 'shell.home.cash_differences_detail' },
   precios_pendientes: { icono: <Tags size={18} aria-hidden="true" />, titulo: 'shell.home.prices', detalle: 'shell.home.prices_detail' },
   entregas_pendientes: { icono: <Truck size={18} aria-hidden="true" />, titulo: 'shell.home.deliveries', detalle: 'shell.home.deliveries_detail' },
   cotizaciones_vencen_hoy: { icono: <FileText size={18} aria-hidden="true" />, titulo: 'shell.home.quotes', detalle: 'shell.home.quotes_detail' },

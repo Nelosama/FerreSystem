@@ -6,8 +6,8 @@ describe('Pendientes del inicio — autorización por rol, módulo y permiso', (
   const claves = (rol: string, registros: { moduleKey: string; enabled: boolean }[] = [], extra: object = {}) =>
     reglasAutorizadas({ rol, ...extra }, registros).map((r) => r.clave);
 
-  it('ADMIN recibe los seis indicadores, ordenados por prioridad', () => {
-    expect(claves('ADMIN')).toEqual(['contingencia_revision', 'descuentos_por_autorizar', 'precios_pendientes', 'entregas_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo']);
+  it('ADMIN recibe los ocho indicadores, ordenados por prioridad', () => {
+    expect(claves('ADMIN')).toEqual(['contingencia_revision', 'descuentos_por_autorizar', 'autorizaciones_caja', 'diferencias_caja', 'precios_pendientes', 'entregas_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo']);
   });
 
   it('cada rol replica la autorización de la pantalla de destino', () => {
@@ -26,9 +26,10 @@ describe('Pendientes del inicio — autorización por rol, módulo y permiso', (
   });
 
   it('un módulo deshabilitado explícitamente oculta sus indicadores; sin registro se considera habilitado', () => {
-    expect(claves('ADMIN', [{ moduleKey: 'pos', enabled: false }])).toEqual(['descuentos_por_autorizar', 'precios_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo']);
-    expect(claves('ADMIN', [{ moduleKey: 'inventario', enabled: false }, { moduleKey: 'cotizaciones', enabled: false }])).toEqual(['contingencia_revision', 'entregas_pendientes']);
-    expect(claves('ADMIN', [{ moduleKey: 'pos', enabled: true }])).toHaveLength(6);
+    expect(claves('ADMIN', [{ moduleKey: 'pos', enabled: false }])).toEqual(['descuentos_por_autorizar', 'autorizaciones_caja', 'diferencias_caja', 'precios_pendientes', 'cotizaciones_vencen_hoy', 'stock_bajo_minimo']);
+    expect(claves('ADMIN', [{ moduleKey: 'inventario', enabled: false }, { moduleKey: 'cotizaciones', enabled: false }])).toEqual(['contingencia_revision', 'autorizaciones_caja', 'diferencias_caja', 'entregas_pendientes']);
+    expect(claves('ADMIN', [{ moduleKey: 'arqueo_caja', enabled: false }])).not.toContain('autorizaciones_caja');
+    expect(claves('ADMIN', [{ moduleKey: 'pos', enabled: true }])).toHaveLength(8);
   });
 
   it('el permiso solo restringe a usuarios con permisos configurados y nunca a ADMIN', () => {
@@ -56,6 +57,8 @@ describe('DashboardService.getPendientes', () => {
     expect(r.indicadores).toEqual([
       { clave: 'contingencia_revision', cantidad: 2, ruta: '/contingencia-admin', alcance: 'NEGOCIO' },
       { clave: 'descuentos_por_autorizar', cantidad: 1, ruta: '/cotizaciones', alcance: 'NEGOCIO' },
+      { clave: 'autorizaciones_caja', cantidad: 1, ruta: '/arqueo-caja', alcance: 'NEGOCIO' },
+      { clave: 'diferencias_caja', cantidad: 5, ruta: '/arqueo-caja', alcance: 'NEGOCIO' },
       { clave: 'precios_pendientes', cantidad: 3, ruta: '/precios', alcance: 'NEGOCIO' },
       { clave: 'entregas_pendientes', cantidad: 4, ruta: '/entregas', alcance: 'NEGOCIO' },
       { clave: 'cotizaciones_vencen_hoy', cantidad: 0, ruta: '/cotizaciones', alcance: 'NEGOCIO' },
