@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const configuration = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
 // Vercel ejecuta ignoreCommand desde el directorio raíz del proyecto (frontend/).
-const frontendDir = new URL('..', import.meta.url).pathname;
+const frontendDir = fileURLToPath(new URL('..', import.meta.url));
 
 test('vercel.json respeta el límite de 256 caracteres de ignoreCommand (validación del esquema de Vercel)', () => {
   // Con 266 caracteres Vercel rechazó el despliegue: «ignoreCommand should NOT be longer than 256 characters».
@@ -37,7 +38,7 @@ for (const [branch, expected] of [
   ['main', 0], ['fix/auditoria-admin', 1], ['fix/pilot-readiness-extra', 1],
   ['claude/revision-seguridad-jowa-20261020', 0], ['claude/revision-seguridad-jowa-20261020-extra', 1],
 ]) {
-  test(`Vercel ignoreCommand: ${branch} exits ${expected}`, { skip: process.platform === 'win32' }, () => {
+  test(`Vercel ignoreCommand: ${branch} exits ${expected}`, { skip: spawnSync('sh', ['-c', 'exit 0']).status !== 0 && 'sh no disponible' }, () => {
     // Only evaluates Vercel's local decision; never invokes a deployment tool.
     const result = spawnSync('sh', ['-c', configuration.ignoreCommand], { cwd: frontendDir, env: { VERCEL_GIT_COMMIT_REF: branch }, encoding: 'utf8' });
     assert.equal(result.status, expected);
