@@ -1646,6 +1646,8 @@
       "subtitle": "Sistema de gestión para negocios",
       "email": "Usuario",
       "password": "Contraseña",
+      "show_password": "Mostrar contraseña",
+      "hide_password": "Ocultar contraseña",
       "submit": "Ingresar al sistema",
       "verifying": "Verificando…",
       "invalid_session": "El servidor no devolvió una sesión válida. Inténtelo de nuevo.",

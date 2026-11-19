@@ -49,6 +49,20 @@
 - **Sin cambios:** precios libres de cotización (A-03) e ISV de compras (A-04) siguen pendientes de decisión; alcance de #248 y #250 intacto. Sin merge, despliegue ni bases reales.
 
 **Bitácora 2026-11-18 (A-02):** lectura de `AGENTS.md`, contexto y evaluación; consulta de `main`, PR #248/#250, sus archivos, checks y comentarios; análisis de solapamiento; rama dependiente de #250; servicio, DTO, controladores, utilidad de pantalla y pruebas con contraprueba; resultados por SHA en el PR.
+## Inicio de sesión: botón mostrar/ocultar contraseña — 2026-11-08 UTC (sin commit, push, merge ni despliegue)
+
+- **Alcance:** frontend del inicio de sesión (`frontend/src/pages/LoginPage.tsx`), estilos (`frontend/src/App.css`), diccionarios (`frontend/src/locales/es.json` y `en.json`). Sin cambios en autenticación, API, backend, base de datos ni variables de entorno.
+- **Implementación:**
+  - Campo de contraseña con estado `mostrarPassword` (por defecto `false`, contraseña oculta).
+  - Botón toggle `<button type="button" className="login-campo-toggle">` con icono dinámico `Eye` / `EyeOff` de `lucide-react`.
+  - Atributo `type="button"` que evita el envío del formulario al hacer clic o pulsar Enter/Espacio en el botón.
+  - Accesibilidad: operable por teclado (Tab + Espacio / Enter), `aria-controls="login-clave"`, `aria-pressed`, `aria-label` y `title` dinámicos en español e inglés mediante el sistema de traducción `useI18n` (`shell.login.show_password` / `shell.login.hide_password`).
+  - Estilos responsivos: `.login-campo--password .form-input` con `padding-right: 44px` para evitar superposición con el texto ingresado. El botón tiene área táctil adecuada (36x36px) centrada verticalmente a 4px del borde derecho.
+- **Pruebas y verificación:**
+  - `frontend/test/login-toggle-password.test.mjs`: valida claves de traducción en ES/EN, directivas de seguridad/accesibilidad y reglas de CSS.
+  - `frontend/e2e/login-toggle-password.spec.ts`: pruebas de navegador Playwright en 1440px (escritorio), 390px (móvil) y 320px (móvil compacto). Valida que no envíe el formulario, alternancia de estados, teclado y contraste WCAG 2.2 AA.
+  - Evidencias gráficas guardadas en `docs/evidencias/login-toggle-password/` (`login-desktop-oculta.png`, `login-desktop-visible.png`, `login-movil-oculta.png`, `login-movil-visible.png`).
+  - Suites ejecutadas: unitarias frontend 542/542 aprobadas; `i18n.test.mjs` aprobada; `oxlint` 0 errores; `tsc -b` limpio; build frontend limpio con `VITE_API_URL=/api`.
 
 ## Etapa 4 de las decisiones del 2026-11-12: RTN del cliente — 2026-11-16 (rama `claude/jowa-etapa4-rtn`, base `main` `5feae04`)
 
