@@ -5,6 +5,9 @@ import { useI18n } from '../context/I18nContext';
 import { formatNumeroCliente } from '../utils/numeroCliente';
 import { leerPlazoCredito } from '../utils/plazoCredito';
 import { rtnValidoOVacio } from '../utils/rtn';
+import { useTenant } from '../context/TenantContext';
+import { newRequestId } from '../utils/requestId';
+import { cerrarSolicitudAlta, claveAlmacenAlta, conservarSolicitudTrasError, solicitudParaAlta } from '../utils/solicitudAlta';
 import {
   Users,
   Search,
@@ -69,6 +72,7 @@ export interface Cliente {
 
 export const ClientesPage: React.FC = () => {
   const { t } = useI18n();
+  const { tenant, user } = useTenant();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -234,17 +238,23 @@ export const ClientesPage: React.FC = () => {
       tipo: formTipo,
     };
 
+    // A-02: el alta lleva una clave de reintento. Si se pierde la respuesta, volver a guardar el mismo contenido
+    // devuelve el cliente ya creado en vez de duplicarlo; otro contenido o un alta terminada usan una clave nueva.
+    const claveAlta = clienteEditando ? null : claveAlmacenAlta('CLIENTE_CREAR', tenant?.id, user?.id);
     try {
       if (clienteEditando) {
         await api.put(`/clientes/${clienteEditando.id}`, payload);
         showSuccess(t('clients.updated_success', { name: payload.nombre }));
       } else {
-        await api.post('/clientes', payload);
+        const solicitudId = solicitudParaAlta(claveAlta!, payload, newRequestId);
+        await api.post('/clientes', { ...payload, solicitudId });
+        cerrarSolicitudAlta(claveAlta!);
         showSuccess(t('clients.saved_success', { name: payload.nombre }));
       }
       setModalFormAbierto(false);
       await fetchClientes();
     } catch (err: any) {
+      if (claveAlta && !conservarSolicitudTrasError(err)) cerrarSolicitudAlta(claveAlta);
       console.error('Error al guardar cliente:', err);
       setModalError(formatApiError(err, t('clients.save_error'), t));
     } finally {

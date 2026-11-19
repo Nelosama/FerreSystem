@@ -8,7 +8,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequiredModule } from '../common/decorators/required-module.decorator';
-import { ConvertirCotizacionDto, CreateCotizacionDto, EstadoCotizacionDto, RegularizarIsvDto } from './dto/create-cotizacion.dto';
+import { ConvertirCotizacionDto, CreateCotizacionDto, DuplicarCotizacionDto, EstadoCotizacionDto, RegularizarIsvDto } from './dto/create-cotizacion.dto';
 
 @Controller('cotizaciones')
 @RequiredModule('cotizaciones')
@@ -59,9 +59,10 @@ export class CotizacionesController {
     @TenantId() tenantId: string,
     @CurrentUser('sub') usuarioId: string,
     @Param('id') id: string,
+    @Body() dto: DuplicarCotizacionDto,
     @CurrentUser('rol') rol?: string,
   ) {
-    return this.cotizacionesService.duplicate(tenantId, usuarioId, id, rol);
+    return this.cotizacionesService.duplicate(tenantId, usuarioId, id, rol, dto?.solicitudId);
   }
 
   // P3: crea una cotización nueva con tasa autorizada a partir de una antigua con tasa no autorizada; la original no cambia.
