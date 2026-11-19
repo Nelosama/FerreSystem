@@ -1611,6 +1611,8 @@
       "subtitle": "Business management system",
       "email": "Username",
       "password": "Password",
+      "show_password": "Show password",
+      "hide_password": "Hide password",
       "submit": "Sign in",
       "verifying": "Verifying…",
       "invalid_session": "The server did not return a valid session. Please try again.",

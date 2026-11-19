@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Mail, ArrowRight, AlertCircle, Clock, Loader2, KeyRound } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, Clock, Loader2, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { MarcaJowa } from '../components/MarcaJowa';
 import { useI18n } from '../context/I18nContext';
 import { useTenant } from '../context/TenantContext';
@@ -20,6 +20,7 @@ export const LoginPage: React.FC = () => {
   // Solo «Usuario» (usuario, código o correo) y «Contraseña». El sistema determina empresa y rol.
   const [usuario, setUsuario] = useState('');
   const [password, setPassword] = useState('');
+  const [mostrarPassword, setMostrarPassword] = useState(false);
   // Un enlace privado de empresa (?empresa=) acota la búsqueda a ese negocio; no se muestra ni se pide.
   const [tenantId] = useState(() => new URLSearchParams(window.location.search).get('empresa') || '');
   // Fallos contados en el navegador: el servidor nunca informa si la cuenta es elegible (no hay enumeración).
@@ -172,17 +173,32 @@ export const LoginPage: React.FC = () => {
 
           <div className="form-group">
             <label className="form-label" htmlFor="login-clave">{t('shell.login.password')}</label>
-            <div className="login-campo">
+            <div className="login-campo login-campo--password">
               <Lock size={16} strokeWidth={2.2} aria-hidden="true" />
               <input
                 id="login-clave"
-                type="password"
+                type={mostrarPassword ? 'text' : 'password'}
                 required
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="form-input"
               />
+              <button
+                type="button"
+                className="login-campo-toggle"
+                onClick={() => setMostrarPassword((prev) => !prev)}
+                aria-label={mostrarPassword ? t('shell.login.hide_password') : t('shell.login.show_password')}
+                title={mostrarPassword ? t('shell.login.hide_password') : t('shell.login.show_password')}
+                aria-controls="login-clave"
+                aria-pressed={mostrarPassword}
+              >
+                {mostrarPassword ? (
+                  <EyeOff size={18} strokeWidth={2.2} aria-hidden="true" />
+                ) : (
+                  <Eye size={18} strokeWidth={2.2} aria-hidden="true" />
+                )}
+              </button>
             </div>
           </div>
 
