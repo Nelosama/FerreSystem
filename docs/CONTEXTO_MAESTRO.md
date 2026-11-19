@@ -1,5 +1,17 @@
 # FerreSystem — contexto maestro y continuidad entre agentes
 
+## Consolidación de ramas — 2026-11-19 (autorizada por el dueño)
+
+- **Encargo:** revisar las ramas abiertas y unificar todo en `main`. Esta autorización sustituye las restricciones históricas de merge de las secciones anteriores; no autoriza un despliegue ni cambios de datos reales.
+- **Base remota verificada:** `main` `1e10459b`. Cuatro ramas: `claude/affectionate-cori-pb4pv2` (`be3f42ad`, #248), `claude/nifty-cannon-q0ourg` (`b061f02c`, #251), `feat/login-mostrar-contrasena` (`4c739ffc`) y `fix/tests-portabilidad-windows` (`1b8dc77f`). Las referencias locales antiguas no se consideran ramas remotas activas.
+- **Integración:** merges normales en `integracion/ramas-20261119`, conservando todos los commits. Conflictos de cabecera en este documento: se preservan todas las secciones; conflicto en `frontend/vercel.json`: se conservan ambos bloqueos de vistas previas. La rama de integración también queda excluida de despliegues en Vercel.
+- **CI previo:** los dos workflows de #248 y #251 están en success en sus SHA exactos (runs 44222910334/44222910337 y 44223426076/44223426102). Esto no certifica el resultado combinado; se comprueba por separado.
+- **NEXUS:** revisión de `schema.prisma` y de `20261115000000_caja_cierre_ciego`: aditiva, conteos y configuración con restricciones, FK e integridad multiempresa. Sin alterar migraciones publicadas ni aplicar cambios a bases reales. Prisma validate/generate y control de migraciones aprobados. Pruebas PostgreSQL del conjunto en curso; el resultado final se registra en el PR de integración.
+- **Validación local del conjunto:** frontend 784/784; compilaciones frontend/backend correctas; lint sin errores (avisos existentes); E2E Chromium dirigido 21/21 (caja, autorizaciones, idempotencia, RTN y acceso en escritorio/móvil); scripts backend 52/52 y validador Python 11/11; guardias/portabilidad/acceso repetidas 58/58. La instalación inicial tenía nodemailer 10.0.16 en node_modules, frente a 10.4.1 del lockfile: se ejecutó `npm ci` antes de repetir el backend. La pasada general PostgreSQL se interrumpió para reinstalar dependencias; no se declara aprobada. CI del conjunto y PostgreSQL dirigido se registran en el PR antes del merge.
+- **Estado operativo:** el merge no acredita GO de producción; siguen vigentes los pendientes de `EVALUACION_PRODUCCION_20261116.md` salvo los cerrados explícitamente por estos cambios.
+
+**Bitácora:** fetch de ramas actuales, consulta de PR y CI, revisión de diffs y migración, integración y resolución de conflictos sin force push. No se han eliminado ramas remotas ni modificado servicios de hosting desde esta tarea.
+
 ## Etapa 3 de las decisiones del 2026-11-12: caja — 2026-11-14 (rama `claude/affectionate-cori-pb4pv2`, base `main` `5feae04`)
 
 - **Estado de Git al iniciar:** `main` `5feae04` (merge de #247, etapa 2). La rama asignada se reinició desde ese `main`. Sin otros PR abiertos ni ramas activas. Alcance y criterios en [#245](https://github.com/Nelosama/FerreSystem/issues/245).

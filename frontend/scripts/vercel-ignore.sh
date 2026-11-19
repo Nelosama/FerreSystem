@@ -6,6 +6,7 @@ fi
 # Vercel: exit 0 omite el despliegue; exit 1 permite construir.
 # Va en un archivo porque Vercel rechaza un vercel.json cuyo ignoreCommand supera 256 caracteres.
 case "$VERCEL_GIT_COMMIT_REF" in
+  integracion/ramas-20261119) exit 0 ;;
   codex/pwa-aislamiento-20261103) exit 0 ;;
   claude/festive-lovelace-nfqn88) exit 0 ;;
   claude/zealous-hypatia-n3fjte) exit 0 ;;

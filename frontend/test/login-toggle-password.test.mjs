@@ -54,4 +54,3 @@ test('App.css: estilos del campo de contraseña y botón toggle', () => {
   // Icono izquierdo no interfiere con el botón toggle
   assert.match(css, /\.login-campo\s*>\s*svg/);
 });
-
