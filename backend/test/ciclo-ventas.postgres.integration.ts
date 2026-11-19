@@ -329,7 +329,11 @@ describe('Ciclo de ventas / HTTP y PostgreSQL aislado', () => {
     await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: p.id, cantidad: 1 }] }).expect(201);
     await http('post', '/ventas', { solicitudId: randomUUID(), detalles: [{ productoId: p.id, cantidad: 1 }] }, segundoToken).expect(201);
     expect((await http('get', '/operaciones/caja').expect(200)).body[0].efectivoEsperado).toBe(215);
-    expect((await http('get', '/operaciones/caja', undefined, segundoToken).expect(200)).body[0].efectivoEsperado).toBe(165);
+    // Cierre ciego (etapa 3): el cajero no recibe el esperado de su caja abierta; el ADMIN sí lo consulta.
+    const propia = (await http('get', '/operaciones/caja', undefined, segundoToken).expect(200)).body[0];
+    expect(propia.efectivoEsperado).toBeUndefined();
+    expect(propia.resumen).toEqual({ fondoInicial: 50, ciego: true });
+    expect((await http('get', `/operaciones/caja/${propia.id}`).expect(200)).body.resumen.efectivoEsperado).toBe(165);
     await http('get', `/operaciones/caja/${cajaId}`, undefined, segundoToken).expect(404);
     expect(await prisma.venta.count({ where: { tenantId, cajaId: caja.body.id, usuarioId: cajero.id } })).toBe(1);
   });

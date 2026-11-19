@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, IsInt, Min, Max, MaxLength, IsArray, ArrayMinSize, ArrayMaxSize, ValidateNested, IsOptional, IsDateString, IsIn, ValidateIf } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsInt, Min, Max, MaxLength, IsArray, ArrayMinSize, ArrayMaxSize, ValidateNested, IsOptional, IsDateString, IsIn, IsUUID, ValidateIf } from 'class-validator';
 import { PagoElectronicoDto } from '../../common/pago-electronico.dto';
 import { ExcepcionPrecioDto } from '../../ventas/dto/create-venta.dto';
 import { Type } from 'class-transformer';
@@ -56,6 +56,11 @@ export class DetalleCotizacionItemDto {
 }
 
 export class CreateCotizacionDto {
+  /** A-02: clave de reintento (UUID v4) del alta. Opcional por compatibilidad; la edición (PUT) la ignora. */
+  @IsUUID('4', { message: 'La clave de solicitud debe ser un UUID v4' })
+  @IsOptional()
+  solicitudId?: string;
+
   @IsString()
   @MaxLength(100)
   @IsOptional()
@@ -140,6 +145,13 @@ export class RegularizarIsvDto {
   @IsIn([...TASAS_ISV_AUTORIZADAS], { message: mensajeTasaNoAutorizada })
   @ValidateIf((o) => o.porcentajeIsv !== undefined)
   porcentajeIsv?: number;
+}
+
+/** A-02: duplicar admite una clave de reintento opcional; sin cuerpo se comporta como antes. */
+export class DuplicarCotizacionDto {
+  @IsUUID('4', { message: 'La clave de solicitud debe ser un UUID v4' })
+  @IsOptional()
+  solicitudId?: string;
 }
 
 /** Cambio de estado: solo los estados que el usuario puede fijar; «CONVERTIDA» solo la produce la conversión a venta. */

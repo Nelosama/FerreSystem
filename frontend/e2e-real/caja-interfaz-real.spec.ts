@@ -11,6 +11,8 @@ const PASSWORD = process.env.E2E_PASSWORD!;
 const PSQL = `${process.env.PG_BIN ?? '/usr/lib/postgresql/16/bin'}/psql`;
 const DB = `postgresql://postgres@127.0.0.1:${process.env.E2E_PG_PORT ?? '55433'}/postgres`;
 const sql = (consulta: string) => execFileSync(PSQL, ['-X', '-At', '-F', '|', DB, '-c', consulta], { encoding: 'utf8' }).trim();
+// Cierre ciego (etapa 3): el cajero no recibe el efectivo esperado de su caja abierta. Las pruebas lo leen de PostgreSQL.
+const esperadoDeCaja = (id: string) => Number(sql(`SELECT (c.monto_apertura + COALESCE((SELECT SUM(m.monto) FROM movimientos_caja m WHERE m.caja_id=c.id AND m.metodo='EFECTIVO'),0))::float FROM cajas c WHERE c.id='${id}'`));
 
 const CAJERO = 'cajero.a@e2e.invalid';
 const TENANT = 'e2e-empresa-a';
@@ -38,7 +40,7 @@ test('caja en navegador real: abrir desde la pantalla, registrar cobro, cerrar d
   // Estado limpio: si otras pruebas dejaron una caja abierta de este cajero, se cierra por API con su efectivo esperado.
   const previas = await (await request.get(`${API}/operaciones/caja`, { headers: auth })).json() as any[];
   for (const c of previas.filter((x) => x.estado === 'ABIERTA')) {
-    const r = await request.post(`${API}/operaciones/caja/${c.id}/cerrar`, { headers: auth, data: { monto: Number(c.efectivoEsperado) } });
+    const r = await request.post(`${API}/operaciones/caja/${c.id}/cerrar`, { headers: auth, data: { monto: esperadoDeCaja(c.id) } });
     expect(r.status()).toBeLessThan(300);
   }
 
@@ -58,9 +60,13 @@ test('caja en navegador real: abrir desde la pantalla, registrar cobro, cerrar d
 
   // 3. Cierre desde la pantalla con el efectivo contado igual al esperado.
   await page.reload();
-  const esperado = Number((await (await request.get(`${API}/operaciones/caja`, { headers: auth })).json() as any[]).find((c) => c.id === cajaId)?.efectivoEsperado);
+  // Cierre ciego: la API no entrega el esperado al cajero; se calcula en PostgreSQL para contar «exacto».
+  expect((await (await request.get(`${API}/operaciones/caja`, { headers: auth })).json() as any[]).find((c) => c.id === cajaId)?.efectivoEsperado).toBeUndefined();
+  const esperado = esperadoDeCaja(cajaId);
   expect(esperado).toBeCloseTo(500 + total, 2);
   await page.getByLabel('Efectivo contado').fill(String(esperado));
+  await page.getByRole('button', { name: 'Registrar conteo' }).click();
+  await expect(page.getByTestId('caja-resultado-conteo')).toContainText('Cuadra');
   // La pantalla pide confirmación antes de cerrar: se acepta en el modal de la aplicación.
   const cierreRespuesta = page.waitForResponse((r) => r.request().method() === 'POST' && /\/operaciones\/caja\/[^/]+\/cerrar$/.test(r.url()), { timeout: 15_000 });
   await page.getByRole('button', { name: 'Cerrar caja' }).click();

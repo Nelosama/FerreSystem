@@ -86,7 +86,14 @@ describe('Auditoría de piloto: jornada de ferretería / PostgreSQL aislado', ()
 
   const vender = (e: N, usuario: string, dto: any) => ventas.create(e.tenantId, usuario, { solicitudId: randomUUID(), ...dto });
   const stock = async (id: string) => { const p = await prisma.producto.findUniqueOrThrow({ where: { id } }); return { actual: Number(p.stockActual), reservado: Number(p.stockReservado) }; };
-  const cajaDe = async (e: N, usuario: string) => (await ops.caja(e.tenantId, usuario))[0];
+  // Cierre ciego (etapa 3): con la caja abierta, quien no es ADMIN no recibe el esperado. Esta auditoría verifica el arqueo, así
+  // que lee el resumen de una caja abierta ajena como ADMIN.
+  const cajaDe = async (e: N, usuario: string) => {
+    const [c] = await ops.caja(e.tenantId, usuario);
+    if (!c || c.estado !== 'ABIERTA' || usuario === e.admin) return c;
+    const { resumen } = await ops.cajaDetalle(e.tenantId, e.admin, c.id);
+    return { ...c, resumen, efectivoEsperado: resumen.efectivoEsperado, totales: resumen.totalesPorMetodo };
+  };
   const cuentaDe = (e: N, ventaId: string) => prisma.cuentaOperativa.findFirstOrThrow({ where: { tenantId: e.tenantId, tipo: 'CXC', documentoId: ventaId } });
   const cents = (v: unknown) => Math.round(Number(v) * 100);
 

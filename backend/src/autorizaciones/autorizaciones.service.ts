@@ -1,10 +1,32 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { moduleEnabled } from '../common/tenant-modules';
 import { PrismaService } from '../prisma/prisma.service';
 import { actor, audit, authorizedActor, query, type Tx } from '../operaciones/ledger';
 import { CotizacionesService } from '../cotizaciones/cotizaciones.service';
 import { TIPO_DESCUENTO_COTIZACION, huellaDescuento, tieneDescuento } from '../cotizaciones/autorizacion-descuento';
 
 const POR_PAGINA = 50;
+const TIPOS_CAJA = ['APERTURA_CAJA', 'CIERRE_CAJA'];
+/**
+ * Módulo de cada tipo de solicitud. El controlador admite cualquiera de los dos módulos (entrada compartida), así que el
+ * servicio comprueba el módulo de la solicitud concreta: una de un módulo desactivado no se consulta, decide ni cancela por
+ * el otro (auditoría de #248). Misma semántica que el guard (`moduleEnabled`): sin registro, el módulo sigue disponible.
+ */
+const MODULO_POR_TIPO: Record<string, string> = { DESCUENTO_COTIZACION: 'cotizaciones', APERTURA_CAJA: 'arqueo_caja', CIERRE_CAJA: 'arqueo_caja' };
+
+async function tiposHabilitados(tx: Tx, tenantId: string): Promise<string[]> {
+  const modulos = [...new Set(Object.values(MODULO_POR_TIPO))];
+  const registros = await tx.tenantModule.findMany({ where: { tenantId, moduleKey: { in: modulos } }, select: { moduleKey: true, enabled: true } });
+  return Object.entries(MODULO_POR_TIPO)
+    .filter(([, modulo]) => moduleEnabled(modulo, registros.find((r) => r.moduleKey === modulo)))
+    .map(([tipo]) => tipo);
+}
+
+async function exigirModuloDe(tx: Tx, tenantId: string, tipo: string) {
+  if (!(await tiposHabilitados(tx, tenantId)).includes(tipo)) {
+    throw new ForbiddenException(`El módulo "${MODULO_POR_TIPO[tipo] ?? tipo}" no está habilitado para su suscripción.`);
+  }
+}
 
 interface Fila {
   id: string; tipo: string; estado: string; entidad_id: string; operacion_hash: string; resumen: unknown;
@@ -46,16 +68,22 @@ export class AutorizacionesService {
   constructor(private readonly prisma: PrismaService, private readonly cotizaciones: CotizacionesService) {}
 
   /** ADMIN ve todas las de su empresa; los demás, solo las que pidieron. */
-  async listar(tenantId: string, usuarioId: string, estado?: string, page = 1) {
+  async listar(tenantId: string, usuarioId: string, estado?: string, page = 1, tipos?: string[]) {
     const usuario = await actor(this.prisma as unknown as Tx, tenantId, usuarioId);
     const pagina = Number.isInteger(page) && page > 0 ? page : 1;
     const soloPropias = usuario.rol !== 'ADMIN';
+    // Solo tipos de módulos habilitados, aunque el cliente pida otros en `tipo`.
+    const habilitados = await tiposHabilitados(this.prisma as unknown as Tx, tenantId);
+    tipos = (tipos?.length ? tipos : habilitados).filter((t) => habilitados.includes(t));
+    if (!tipos.length) return { solicitudes: [], pendientes: 0, page: pagina, hayMas: false };
     const filas = await query<Fila>(this.prisma as unknown as Tx, `${SELECT}
       WHERE s.tenant_id = $1 AND ($2::text IS NULL OR s.estado::text = $2) AND ($3::text IS NULL OR s.solicitante_id = $3)
+        AND ($5::text[] IS NULL OR s.tipo::text = ANY($5::text[]))
       ORDER BY (s.estado = 'PENDIENTE') DESC, s.solicitada_at DESC, s.id DESC
-      LIMIT ${POR_PAGINA + 1} OFFSET $4`, tenantId, estado ?? null, soloPropias ? usuarioId : null, (pagina - 1) * POR_PAGINA);
+      LIMIT ${POR_PAGINA + 1} OFFSET $4`, tenantId, estado ?? null, soloPropias ? usuarioId : null, (pagina - 1) * POR_PAGINA, tipos?.length ? tipos : null);
     const [{ total }] = await query<{ total: number }>(this.prisma as unknown as Tx, `SELECT COUNT(*)::int AS total FROM solicitudes_autorizacion s
-      WHERE s.tenant_id = $1 AND s.estado = 'PENDIENTE' AND ($2::text IS NULL OR s.solicitante_id = $2)`, tenantId, soloPropias ? usuarioId : null);
+      WHERE s.tenant_id = $1 AND s.estado = 'PENDIENTE' AND ($2::text IS NULL OR s.solicitante_id = $2)
+        AND ($3::text[] IS NULL OR s.tipo::text = ANY($3::text[]))`, tenantId, soloPropias ? usuarioId : null, tipos?.length ? tipos : null);
     return { solicitudes: filas.slice(0, POR_PAGINA).map(vista), pendientes: total, page: pagina, hayMas: filas.length > POR_PAGINA };
   }
 
@@ -64,6 +92,7 @@ export class AutorizacionesService {
     const fila = await this.fila(this.prisma as unknown as Tx, tenantId, id);
     // Misma respuesta que «no existe» para no revelar solicitudes de otras personas.
     if (usuario.rol !== 'ADMIN' && fila.solicitante_id !== usuarioId) throw new NotFoundException('Solicitud de autorización no encontrada');
+    await exigirModuloDe(this.prisma as unknown as Tx, tenantId, fila.tipo);
     return vista(fila);
   }
 
@@ -83,10 +112,33 @@ export class AutorizacionesService {
     const usuario = await actor(this.prisma as unknown as Tx, tenantId, usuarioId);
     const fila = await this.fila(this.prisma as unknown as Tx, tenantId, id);
     if (usuario.rol !== 'ADMIN' && fila.solicitante_id !== usuarioId) throw new NotFoundException('Solicitud de autorización no encontrada');
+    // Antes de cambiar nada: con el módulo de la solicitud desactivado no se cancela (ni se quita el descuento de la cotización).
+    await exigirModuloDe(this.prisma as unknown as Tx, tenantId, fila.tipo);
     if (fila.estado !== 'PENDIENTE') throw new ConflictException(this.yaResuelta(fila));
+    if (TIPOS_CAJA.includes(fila.tipo)) return this.prisma.$transaction((tx) => this.cancelarCaja(tx, tenantId, usuarioId, id));
     if (fila.tipo !== TIPO_DESCUENTO_COTIZACION) throw new ConflictException('Este tipo de solicitud no se puede cancelar desde aquí');
     await this.cotizaciones.quitarDescuento(tenantId, usuarioId, fila.entidad_id, usuario.rol);
     return vista(await this.fila(this.prisma as unknown as Tx, tenantId, id));
+  }
+
+  /**
+   * Apertura o cierre de caja: retirar la solicitud no cambia la caja; queda registrado quién y cuándo. Cambio de estado,
+   * auditoría y lectura final en una sola transacción: si la auditoría falla, la solicitud sigue PENDIENTE. La fila se
+   * bloquea (`FOR UPDATE`) y se vuelven a validar empresa, solicitante y estado, así que una aprobación o un rechazo
+   * concurrente y la cancelación se ordenan: la segunda en llegar recibe 409 y no deja estado ni auditoría propios.
+   */
+  private async cancelarCaja(tx: Tx, tenantId: string, usuarioId: string, id: string) {
+    const usuario = await actor(tx, tenantId, usuarioId);
+    const [actual] = await query<{ estado: string; solicitante_id: string }>(tx,
+      'SELECT estado::text AS estado, solicitante_id FROM solicitudes_autorizacion WHERE id = $1 AND tenant_id = $2 FOR UPDATE', id, tenantId);
+    if (!actual || (usuario.rol !== 'ADMIN' && actual.solicitante_id !== usuarioId)) throw new NotFoundException('Solicitud de autorización no encontrada');
+    if (actual.estado !== 'PENDIENTE') throw new ConflictException(this.yaResuelta(await this.fila(tx, tenantId, id)));
+    const cambiadas = await query<{ id: string; tipo: string; entidad_id: string }>(tx, `UPDATE solicitudes_autorizacion
+      SET estado = 'CANCELADA', decisor_id = $3, decidida_at = now(), motivo_decision = 'Solicitud de caja retirada por quien la pidió'
+      WHERE id = $1 AND tenant_id = $2 AND estado = 'PENDIENTE' RETURNING id, tipo::text AS tipo, entidad_id`, id, tenantId, usuarioId);
+    if (cambiadas.length !== 1) throw new ConflictException('La solicitud ya fue resuelta');
+    await audit(tx, tenantId, usuarioId, 'AUTORIZACION_CANCELADA', id, { tipo: cambiadas[0].tipo, entidadId: cambiadas[0].entidad_id });
+    return vista(await this.fila(tx, tenantId, id));
   }
 
   private async decidir(tenantId: string, usuarioId: string, id: string, decision: 'APROBADA' | 'RECHAZADA', motivoCrudo?: string) {
@@ -96,6 +148,8 @@ export class AutorizacionesService {
       const decisor = await authorizedActor(tx, tenantId, usuarioId, ['ADMIN']);
       if (decisor.rol !== 'ADMIN') throw new ForbiddenException('Solo un administrador puede decidir una solicitud de autorización');
       const previa = await this.fila(tx, tenantId, id);
+      await exigirModuloDe(tx, tenantId, previa.tipo);
+      if (TIPOS_CAJA.includes(previa.tipo)) return this.decidirCaja(tx, tenantId, usuarioId, previa, decision, motivo);
       if (previa.tipo !== TIPO_DESCUENTO_COTIZACION) throw new ConflictException('Tipo de solicitud no admitido');
       // Mismo orden de bloqueo que las ediciones de la cotización: primero la cotización, después la solicitud.
       await query(tx, 'SELECT id FROM cotizaciones WHERE id = $1 AND tenant_id = $2 FOR UPDATE', previa.entidad_id, tenantId);
@@ -121,6 +175,32 @@ export class AutorizacionesService {
       });
       return vista(await this.fila(tx, tenantId, id));
     });
+  }
+
+  /**
+   * Apertura o cierre de caja (etapa 3). Un cierre solo se aprueba si la caja sigue abierta y su último conteo es el que se
+   * pidió autorizar: si el cajero volvió a contar, hace falta una solicitud nueva. Aprobar no abre ni cierra la caja: lo
+   * completa el cajero con la autorización vigente.
+   */
+  private async decidirCaja(tx: Tx, tenantId: string, usuarioId: string, previa: Fila, decision: 'APROBADA' | 'RECHAZADA', motivo: string | null) {
+    if (previa.tipo === 'CIERRE_CAJA') {
+      const [caja] = await query(tx, 'SELECT id, estado::text AS estado FROM cajas WHERE id = $1 AND tenant_id = $2 FOR UPDATE', previa.entidad_id, tenantId);
+      if (!caja) throw new NotFoundException('La caja de esta solicitud ya no existe');
+      if (decision === 'APROBADA') {
+        if (caja.estado !== 'ABIERTA') throw new ConflictException('La caja ya está cerrada');
+        const [ultimo] = await query(tx, 'SELECT id FROM conteos_caja WHERE tenant_id = $1 AND caja_id = $2 ORDER BY created_at DESC, id DESC LIMIT 1', tenantId, caja.id);
+        const pedido = (previa.resumen as any)?.conteoId;
+        if (!ultimo || ultimo.id !== pedido) throw new ConflictException('El cajero volvió a contar después de la solicitud. Debe pedir una autorización nueva con el conteo actual');
+      }
+    }
+    const [actual] = await query<{ estado: string }>(tx, 'SELECT estado::text AS estado FROM solicitudes_autorizacion WHERE id = $1 AND tenant_id = $2 FOR UPDATE', previa.id, tenantId);
+    if (!actual || actual.estado !== 'PENDIENTE') throw new ConflictException(this.yaResuelta(await this.fila(tx, tenantId, previa.id)));
+    const cambiadas = await query<{ id: string }>(tx, `UPDATE solicitudes_autorizacion
+      SET estado = $3::"EstadoSolicitudAutorizacion", decisor_id = $4, decidida_at = now(), motivo_decision = $5
+      WHERE id = $1 AND tenant_id = $2 AND estado = 'PENDIENTE' RETURNING id`, previa.id, tenantId, decision, usuarioId, motivo);
+    if (cambiadas.length !== 1) throw new ConflictException('La solicitud ya fue resuelta');
+    await audit(tx, tenantId, usuarioId, `AUTORIZACION_${decision}`, previa.id, { tipo: previa.tipo, entidadId: previa.entidad_id, solicitanteId: previa.solicitante_id, motivo, resumen: previa.resumen });
+    return vista(await this.fila(tx, tenantId, previa.id));
   }
 
   private yaResuelta(f: Fila) {

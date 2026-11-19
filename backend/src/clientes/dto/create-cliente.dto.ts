@@ -1,7 +1,12 @@
-import { IsString, IsNotEmpty, IsOptional, IsEmail, IsEnum, MaxLength, ValidateIf } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEmail, IsEnum, IsUUID, MaxLength, ValidateIf } from 'class-validator';
 import { TipoCliente } from '../../types/prisma-enums';
 
 export class CreateClienteDto {
+  /** A-02: clave de reintento (UUID v4) que genera la pantalla al iniciar el alta. Opcional por compatibilidad. */
+  @IsUUID('4', { message: 'La clave de solicitud debe ser un UUID v4' })
+  @IsOptional()
+  solicitudId?: string;
+
   @IsString()
   @IsNotEmpty({ message: 'El nombre del cliente es obligatorio' })
   @MaxLength(200, { message: 'El nombre del cliente no puede superar 200 caracteres' })

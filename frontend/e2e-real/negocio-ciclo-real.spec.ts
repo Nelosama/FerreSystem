@@ -11,6 +11,8 @@ const PASSWORD = process.env.E2E_PASSWORD!;
 const PSQL = `${process.env.PG_BIN ?? '/usr/lib/postgresql/16/bin'}/psql`;
 const DB = `postgresql://postgres@127.0.0.1:${process.env.E2E_PG_PORT ?? '55433'}/postgres`;
 const sql = (consulta: string) => execFileSync(PSQL, ['-X', '-At', '-F', '|', DB, '-c', consulta], { encoding: 'utf8' }).trim();
+// Cierre ciego (etapa 3): el cajero no recibe el efectivo esperado de su caja abierta. Las pruebas lo leen de PostgreSQL.
+const esperadoDeCaja = (id: string) => Number(sql(`SELECT (c.monto_apertura + COALESCE((SELECT SUM(m.monto) FROM movimientos_caja m WHERE m.caja_id=c.id AND m.metodo='EFECTIVO'),0))::float FROM cajas c WHERE c.id='${id}'`));
 
 const ADMIN = 'admin.a@e2e.invalid';
 const CAJERO = 'cajero.a@e2e.invalid';
@@ -118,7 +120,7 @@ test.describe('Negocio — módulos esenciales con PostgreSQL real', () => {
     // Otras pruebas de la misma suite pueden dejar cajas abiertas de este cajero: se cierran por API con el efectivo esperado.
     const abiertas = await call(request, cajero.token, 'get', '/operaciones/caja');
     for (const c of (abiertas.body as any[]).filter((x) => x.estado === 'ABIERTA')) {
-      const cierrePrevio = await call(request, cajero.token, 'post', `/operaciones/caja/${c.id}/cerrar`, { monto: Number(c.efectivoEsperado) });
+      const cierrePrevio = await call(request, cajero.token, 'post', `/operaciones/caja/${c.id}/cerrar`, { monto: esperadoDeCaja(c.id) });
       expect(cierrePrevio.status, JSON.stringify(cierrePrevio.body)).toBeLessThan(300);
     }
     const abrir = await call(request, cajero.token, 'post', '/operaciones/caja/abrir', { solicitudId: randomUUID(), monto: 500 });
@@ -136,7 +138,9 @@ test.describe('Negocio — módulos esenciales con PostgreSQL real', () => {
     // Cobro registrado en la caja: efectivo esperado = fondo + cobro en efectivo.
     const estado = await call(request, cajero.token, 'get', '/operaciones/caja');
     const cajaAbierta = estado.body.find((c: any) => c.id === cajaId);
-    const esperado = Number(cajaAbierta.efectivoEsperado);
+    // Cierre ciego: el cajero no recibe el esperado; el ADMIN lo consulta en el detalle.
+    expect(cajaAbierta.efectivoEsperado).toBeUndefined();
+    const esperado = Number((await call(request, admin.token, 'get', `/operaciones/caja/${cajaId}`)).body.resumen.efectivoEsperado);
     expect(esperado).toBeCloseTo(500 + total, 2);
     expect(Number(sql(`SELECT COUNT(*) FROM movimientos_caja WHERE caja_id='${cajaId}' AND referencia='${ventaId}'`))).toBeGreaterThanOrEqual(1);
 

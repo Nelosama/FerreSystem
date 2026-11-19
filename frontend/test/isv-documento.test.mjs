@@ -12,7 +12,7 @@ const cargar = (file) => {
 const web = cargar('src/utils/isv-documento.ts');
 
 test('espejo idéntico al servidor (salvo el import de redondeo)', () => {
-  const quitar = (s) => s.replace(/^\/\/.*\n/gm, '').replace(/^import .*\n/m, '').replace(/^const mitadArriba.*\n/m, '').replace(/divisionMitadArriba/g, 'mitadArriba').trim();
+  const quitar = (s) => s.replace(/\r\n/g, '\n').replace(/^\/\/.*\n/gm, '').replace(/^import .*\n/m, '').replace(/^const mitadArriba.*\n/m, '').replace(/divisionMitadArriba/g, 'mitadArriba').trim();
   assert.equal(quitar(fs.readFileSync('src/utils/isv-documento.ts', 'utf8')), quitar(fs.readFileSync('../backend/src/common/isv-documento.ts', 'utf8')));
 });
 

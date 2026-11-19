@@ -2,6 +2,7 @@ import { enabledTenantModules } from '../common/tenant-modules';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ZONA_HORARIA_NEGOCIO, diaCalendario, rangoDiasEnZona, sumarDias } from '../common/zona-horaria';
+import { CONDICION_AVISO_DIFERENCIA } from '../operaciones/caja-control';
 import { MODULOS_PENDIENTES, reglasAutorizadas, type ClavePendiente, type UsuarioPendientes } from './pendientes';
 
 // Estados de cotización que siguen vigentes (mismo criterio que el resumen).
@@ -140,6 +141,10 @@ export class DashboardService {
         case 'descuentos_por_autorizar':
           // Solicitudes de descuento de cotización que esperan la decisión de un ADMIN.
           return this.prisma.solicitudAutorizacion.count({ where: { tenantId, estado: 'PENDIENTE', tipo: 'DESCUENTO_COTIZACION' } });
+        case 'autorizaciones_caja':
+          return this.prisma.solicitudAutorizacion.count({ where: { tenantId, estado: 'PENDIENTE', tipo: { in: ['APERTURA_CAJA', 'CIERRE_CAJA'] } } });
+        case 'diferencias_caja':
+          return this.contarDiferenciasCaja(tenantId);
         case 'precios_pendientes':
           // Igual que la pestaña «Pendientes» de /precios: productos activos sin precio aprobado.
           return this.prisma.producto.count({ where: { tenantId, activo: true, precioAprobado: false } });
@@ -159,6 +164,12 @@ export class DashboardService {
       generadoAt: new Date().toISOString(),
       indicadores: reglas.map((r, i) => ({ clave: r.clave, cantidad: cantidades[i], ruta: r.ruta, alcance: r.alcance })),
     };
+  }
+
+  /** Cierres con diferencia que un ADMIN aún no revisó (umbral vigente de la tienda). Misma condición que /arqueo-caja. */
+  private async contarDiferenciasCaja(tenantId: string): Promise<number> {
+    const [fila] = await this.prisma.$queryRawUnsafe<{ cantidad: number }[]>(`SELECT COUNT(*)::int AS cantidad FROM cajas c WHERE c.tenant_id = $1 AND ${CONDICION_AVISO_DIFERENCIA}`, tenantId);
+    return Number(fila?.cantidad ?? 0);
   }
 
   /** Ventas con mercancía de bodega por entregar: misma condición que GET /entregas/pendientes, en un solo COUNT. */
