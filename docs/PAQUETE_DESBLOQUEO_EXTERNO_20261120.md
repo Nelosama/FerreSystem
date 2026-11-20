@@ -42,12 +42,17 @@ En GitHub, regla de rama para `main`: PR obligatorio, checks requeridos `validat
    bash backend/scripts/verificar-respaldo.sh /ruta/privada/respaldo-AAAAMMDD-HHMM
    ```
    La segunda orden restaura en un PostgreSQL local temporal y deja `manifest.json.verificado` con `restoreTested=true`; requiere PostgreSQL 16 local.
-4. Restauración **cronometrada** en otra base desechable y vacía (nunca la de origen). El volcado trae `CREATE SCHEMA public`, así que la base destino debe **no tener** el esquema `public`; sobre esa base destino, y solo sobre ella:
+4. Restauración **cronometrada** en otra base **nueva y vacía** (nunca la de origen ni una con datos). El volcado trae `CREATE SCHEMA public` y una base recién creada ya lo tiene, así que antes hay que retirar ese esquema **vacío**. Se hace **sin `CASCADE`**: si el esquema contiene algún objeto, el paso falla y no se borra nada. Las credenciales vienen del gestor de secretos, por variables de entorno (nada en argumentos ni en el historial):
    ```
-   psql 'postgresql://USUARIO:CLAVE@HOST:5432/DESTINO' -c 'DROP SCHEMA public CASCADE'
-   time FERRE_RESTORE_DATABASE_URL='postgresql://USUARIO:CLAVE@HOST:5432/DESTINO' npm --prefix backend run backup:verify-restore -- /ruta/absoluta/respaldo-AAAAMMDD-HHMM/manifest.json
+   export PGHOST=… PGPORT=… PGUSER=… PGPASSWORD=… PGDATABASE=DESTINO        # solo para psql
+   export FERRE_RESTORE_DATABASE_URL='postgresql://USUARIO:CLAVE@HOST:5432/DESTINO'   # la misma base destino
+   MANIFEST=/ruta/absoluta/respaldo-AAAAMMDD-HHMM/manifest.json
+
+   test "$(sha256sum "$(dirname "$MANIFEST")/database.dump" | cut -d' ' -f1)" = "$(node -p "require('$MANIFEST').sha256")" \
+     && psql -X -v ON_ERROR_STOP=1 -c 'DROP SCHEMA public' \
+     && time npm --prefix backend run backup:verify-restore -- "$MANIFEST"
    ```
-   Use ruta **absoluta** al manifiesto: `npm --prefix backend` ejecuta con `backend/` como directorio actual. Sin `DROP SCHEMA public` sobre una base recién creada la restauración falla con `schema "public" already exists`. Éxito: «Restauración comprobada en base aislada; manifiesto actualizado» y `manifest.json` con `restoreTested=true` (el script lo modifica en su sitio). Evidencia: tiempo medido, conteos del `manifest.json` iguales tras restaurar y comparación con RPO/RTO.
+   Es **una sola cadena**: si falla cualquier eslabón, los siguientes no se ejecutan. (1) Si el checksum del volcado no coincide con el manifiesto, no se toca la base. (2) Si el destino tiene objetos (por ejemplo una tabla), `DROP SCHEMA public` es rechazado con «cannot drop schema public because other objects depend on it», los datos se conservan y la restauración no se invoca. (3) Solo con destino nuevo y vacío se restaura. **No sustituya por `DROP SCHEMA public CASCADE`**: eliminaría datos antes de que la guardia de «destino vacío» de `restore-verify.mjs` pueda rechazar una base ocupada. Use ruta **absoluta** al manifiesto: `npm --prefix backend` ejecuta con `backend/` como directorio actual. Éxito: «Restauración comprobada en base aislada; manifiesto actualizado» y `manifest.json` con `restoreTested=true` (el script lo modifica en su sitio). Evidencia: tiempo medido, conteos del `manifest.json` iguales tras restaurar y comparación con RPO/RTO. Al terminar, `unset PGPASSWORD FERRE_RESTORE_DATABASE_URL`.
 
 ## Preproducción y ensayo de migraciones (B-03)
 
@@ -102,4 +107,4 @@ Sigue en **NO-GO** propio hasta satisfacer sus criterios (aislamiento por empres
 
 ## Verificación de estas instrucciones
 
-Los comandos de B-02 y B-03 se ejecutaron tal como están escritos el 2026-11-20 en un PostgreSQL 16 temporal con datos sintéticos (una empresa, tres usuarios sintéticos y las 36 migraciones del candidato), contra el backend compilado en `127.0.0.1`: `migrate:inspect` (`VACIA`) y `migrate:deploy` (`LISTA`, sin errores); `estado-base-solo-lectura.sql` (36 `APLICADA_OK`, el `grep` imprime `0`); respaldo previo y verificación (77 tablas con conteos idénticos); restauración con `FERRE_RESTORE_DATABASE_URL` y ruta absoluta (tras `DROP SCHEMA public CASCADE` en el destino; sin esa precondición falla, comprobado); humo de solo lectura 7/7; humo con escritura contra un host tratado como remoto (`127.0.0.2`): rechazado con código 2 sin `CONFIRMO_ENTORNO_NO_PRODUCTIVO=SI` y 23/23 con todas las variables. Esto prueba los comandos, no la infraestructura real: Render, Supabase y los tiempos reales de restauración siguen pendientes.
+Los comandos de B-02 y B-03 se ejecutaron tal como están escritos el 2026-11-20 en un PostgreSQL 16 temporal con datos sintéticos (una empresa, tres usuarios sintéticos y las 36 migraciones del candidato), contra el backend compilado en `127.0.0.1`: `migrate:inspect` (`VACIA`) y `migrate:deploy` (`LISTA`, sin errores); `estado-base-solo-lectura.sql` (36 `APLICADA_OK`, el `grep` imprime `0`); respaldo previo y verificación (77 tablas con conteos idénticos); restauración con `FERRE_RESTORE_DATABASE_URL` y ruta absoluta mediante la cadena de la sección B-02 (sobre destino vacío: correcta; sobre destino con una tabla centinela: `DROP SCHEMA public` rechazado, tabla y fila conservadas y restauración no invocada; con checksum alterado: la cadena se corta antes de tocar la base); humo de solo lectura 7/7; humo con escritura contra un host tratado como remoto (`127.0.0.2`): rechazado con código 2 sin `CONFIRMO_ENTORNO_NO_PRODUCTIVO=SI` y 23/23 con todas las variables. Esto prueba los comandos, no la infraestructura real: Render, Supabase y los tiempos reales de restauración siguen pendientes.
