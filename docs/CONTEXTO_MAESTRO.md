@@ -9,6 +9,8 @@
 - **Dictamen:** preparación técnica del candidato: sin defectos de código conocidos. Autorización operativa: **NO-GO** vigente por B-01…B-11 de la evaluación (Render, respaldo y restauración reales, preproducción, equipos físicos, aceptación, correo real, monitoreo, protección de `main`, variables, decisiones del dueño y del contador). Contingencia offline: NO-GO propio, sin cambios.
 - **Pendiente de proceso:** revisión del auditor (Codex). No hay canal con su sesión desde aquí; el mensaje de entrega queda para que el dueño lo copie. No hay merge, despliegue, migración productiva ni base real en esta tarea.
 
+- **Observación P2 de Codex sobre `32ce860` (corregida, pendiente de verificación de Codex):** los comandos de B-02/B-03 de [PAQUETE_DESBLOQUEO_EXTERNO_20261120.md](PAQUETE_DESBLOQUEO_EXTERNO_20261120.md) ahora usan `npm --prefix backend run …`, `FERRE_RESTORE_DATABASE_URL` con ruta absoluta de `manifest.json` y las variables de API, credenciales y `CONFIRMO_ENTORNO_NO_PRODUCTIVO=SI` del humo remoto. Al ejecutarlos en PostgreSQL 16 temporal con datos sintéticos aparecieron tres correcciones adicionales ya incluidas: la restauración exige una base destino sin esquema `public` (si no, `schema "public" already exists`), la ruta del manifiesto debe ser absoluta, y el `grep` de alertas del estado debe anclarse a las filas de migraciones (la leyenda contiene las palabras). La verificación está descrita al final del paquete.
+
 **Bitácora 2026-11-20:** lectura de `AGENTS.md`, `NEXUS.md`, evaluación y contexto; consulta de `main`, PR y workflows; instalación de dependencias; pruebas listadas; bloqueo de vista previa; paquete de desbloqueo.
 
 ## Consolidación de ramas — 2026-11-19 (autorizada por el dueño)
