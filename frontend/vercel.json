@@ -72,7 +72,8 @@
       "claude/jowa-etapa4-rtn": false,
       "claude/affectionate-cori-pb4pv2": false,
       "claude/nifty-cannon-q0ourg": false,
-      "integracion/ramas-20261119": false
+      "integracion/ramas-20261119": false,
+      "claude/ferresystem-production-readiness-ndrre3": false
     }
   },
   "ignoreCommand": "sh scripts/vercel-ignore.sh"

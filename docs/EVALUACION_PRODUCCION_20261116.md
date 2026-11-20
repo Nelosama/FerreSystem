@@ -6,6 +6,8 @@
 
 El código de `main` está verde en CI y no encontré defectos P0 de código. El NO-GO se debe a requisitos que no se pueden verificar ni cerrar desde el repositorio: configuración real de Render, respaldos y restauración, preproducción, equipos físicos, aceptación del cliente y decisiones del dueño. Detalle en §3.
 
+> **Actualización 2026-11-20:** #248 (caja), #250 (RTN) y #251 (altas idempotentes) están integrados en `main` `eae6ed0` (#252), con CI verde en ese SHA. Por tanto A-01 queda **integrada, con los tres supuestos de caja aún sin confirmar por el dueño**; A-02 y A-05 quedan **implementadas e integradas** (cierre completo pendiente de aceptación del cliente). El resto de §2.2 y §3 no cambia. Procedimiento y evidencia de los bloqueos externos: [PAQUETE_DESBLOQUEO_EXTERNO_20261120.md](PAQUETE_DESBLOQUEO_EXTERNO_20261120.md). Esta tabla sigue siendo la lista vigente.
+
 ## 1. Estado verificado hoy
 
 | Dato | Valor | Fuente |
